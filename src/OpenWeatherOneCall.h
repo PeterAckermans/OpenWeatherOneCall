@@ -85,9 +85,9 @@ public:
 
     struct
     {
-        char CITY[60] = {NULL};
-        char STATE[10] = {NULL};
-        char COUNTRY[10] = {NULL};
+        char CITY[60] = {'\0'};
+        char STATE[10] = {'\0'};
+        char COUNTRY[10] = {'\0'};
         char timezone[50];
         int timezoneOffset;
         float LATITUDE;
@@ -97,7 +97,7 @@ public:
     struct airQuality
     {
         long dayTime;
-        char readableDateTime;
+        char readableDateTime[20];
         int aqi;
         float co; // :201.94053649902344,
         float no; //:0.01877197064459324,
@@ -107,17 +107,17 @@ public:
         float pm2_5; //:0.5,
         float pm10; //:0.540438711643219,
         float nh3; //:0.12369127571582794
-    } *quality;
+    } *quality = NULL;
 
     struct nowData
     {
         long dayTime; // 1582151288
         char readableDateTime[20];
-        char readableWeekdayName[4];
+        char readableWeekdayName[20];
         long sunriseTime; // 1582112760
-        char readableSunrise[5];
+        char readableSunrise[20];
         long sunsetTime; // 1582151880
-        char readableSunset[5];
+        char readableSunset[20];
         float temperature; // 46.38
         float apparentTemperature; // 41.49
         float pressure; // 1026.4
@@ -135,7 +135,7 @@ public:
         char* main; //"Clear"
         char* summary; // "Clear Skies" - uses "description"
         char icon[4]; // "02d"
-    } *current;
+    } *current = NULL;
 
 
     struct futureData
@@ -144,9 +144,9 @@ public:
         long dayTime; // 1582088400
         char readableDateTime[20];
         long sunriseTime; // 1582112760
-        char readableSunrise[5];
+        char readableSunrise[20];
         long sunsetTime; // 1582151880
-        char readableSunset[5];
+        char readableSunset[20];
 
         float temperatureDay; // 51.24
         float temperatureLow; // 30.17
@@ -228,13 +228,13 @@ public:
 
     struct HISTORICAL
     {
-        char weekDayName[4];
+        char weekDayName[20];
         long dayTime; // 1604242490
         char readableDateTime[20];
         long sunrise; // 1604230151
-        char readableSunrise[5];
+        char readableSunrise[20];
         long sunset; // 1604267932
-        char readableSunset[5];
+        char readableSunset[20];
         float temperature; // 285.9
         float apparentTemperature; // 283.42
         float pressure; // 1016
@@ -285,14 +285,14 @@ private:
     // For eventual struct calls
     struct apiInfo
     {
-        char OPEN_WEATHER_DKEY[100] = {NULL};
+        char OPEN_WEATHER_DKEY[100] = {'\0'};
         int OPEN_WEATHER_DATEFORMAT = 1;
         char OPEN_WEATHER_LANGUAGE[6] = "en";
-        float OPEN_WEATHER_LATITUDE = NULL;
-        float OPEN_WEATHER_LONGITUDE = NULL;
+        float OPEN_WEATHER_LATITUDE = 0;
+        float OPEN_WEATHER_LONGITUDE = 0;
         int OPEN_WEATHER_UNITS = 2;
-        int OPEN_WEATHER_EXCLUDES = NULL;
-        int OPEN_WEATHER_HISTORY = NULL;
+        int OPEN_WEATHER_EXCLUDES = 0;
+        int OPEN_WEATHER_HISTORY = 0;
     } USER_PARAM;
 
 

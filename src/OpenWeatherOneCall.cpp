@@ -64,6 +64,7 @@ int OpenWeatherOneCall::parseWeather(void)
             if(USER_PARAM.OPEN_WEATHER_HISTORY)  //If Historical Weather is requested, no CURRENT weather returned
                 {
                     OpenWeatherOneCall::freeCurrentMem();
+					OpenWeatherOneCall::freeQualityMem(); // Free AIR quality memory
                     OpenWeatherOneCall::freeForecastMem();
                     OpenWeatherOneCall::freeAlertMem();
                     OpenWeatherOneCall::freeHourMem();
@@ -78,11 +79,8 @@ int OpenWeatherOneCall::parseWeather(void)
                     // TEST AIR QUALITY CALL *********************
                     OpenWeatherOneCall::createAQ(384);
 
-
                     //********************************************
-
                     int error_code = OpenWeatherOneCall::createCurrent(SIZE_CAPACITY);
-
                 }
             if(error_code)
                 {
@@ -118,7 +116,7 @@ int OpenWeatherOneCall::parseWeather(char* DKEY, char* GKEY, float SEEK_LATITUDE
         }
     else
         OpenWeatherOneCall::setLatLon();
-    OpenWeatherOneCall::parseWeather();
+    return OpenWeatherOneCall::parseWeather();
 }
 
 int OpenWeatherOneCall::setLatLon(float _LAT, float _LON)
@@ -152,8 +150,8 @@ int OpenWeatherOneCall::setLatLon(int _CITY_ID)
     int error_code = 0;
 
     char cityURL[110];
-    char* URL1 = "http://api.openweathermap.org/data/2.5/weather?id=";
-    char* URL2 = "&appid=";
+    char* URL1 = (char *)"http://api.openweathermap.org/data/2.5/weather?id=";
+    char* URL2 = (char *)"&appid=";
 
     sprintf(cityURL,"%s%d%s%s",URL1,_CITY_ID,URL2,USER_PARAM.OPEN_WEATHER_DKEY);
     error_code = OpenWeatherOneCall::parseCityCoordinates(cityURL);
@@ -328,7 +326,7 @@ int OpenWeatherOneCall::getIPAPILocation(char* URL)
 
 void OpenWeatherOneCall::initAPI(void)
 {
-    memset(USER_PARAM.OPEN_WEATHER_DKEY,NULL,1);
+    memset(USER_PARAM.OPEN_WEATHER_DKEY,0,1);
     USER_PARAM.OPEN_WEATHER_LATITUDE = 0.0;
     USER_PARAM.OPEN_WEATHER_LONGITUDE = 0.0;
     USER_PARAM.OPEN_WEATHER_UNITS = 2;
@@ -422,6 +420,7 @@ int OpenWeatherOneCall::createHistory()
     //Gets Timestamp for EPOCH calculation below
     char tempURL[200];
     sprintf(tempURL,"https://api.openweathermap.org/data/2.5/onecall?lat=%.6f&lon=%.6f&exclude=minutely,hourly,daily,alerts&units=IMPERIAL&appid=%s",USER_PARAM.OPEN_WEATHER_LATITUDE,USER_PARAM.OPEN_WEATHER_LONGITUDE,USER_PARAM.OPEN_WEATHER_DKEY);
+    // printf("%s\n\r",tempURL);
 
     HTTPClient http;
     http.begin(tempURL);
@@ -454,6 +453,7 @@ int OpenWeatherOneCall::createHistory()
 
     //Timemachine request to OWM
     sprintf(historyURL,"%s?lat=%.6f&lon=%.6f%s%ld&units=%s%s%s",TS_URL1,USER_PARAM.OPEN_WEATHER_LATITUDE,USER_PARAM.OPEN_WEATHER_LONGITUDE,TS_URL2,tempEPOCH,units,DS_URL3,USER_PARAM.OPEN_WEATHER_DKEY);
+    // printf("%s\n\r",historyURL);
 
     http.begin(historyURL);
     httpCode = http.GET();
@@ -661,7 +661,7 @@ int OpenWeatherOneCall::createAQ(int sizeCap)
     char getURL[200] = {0};
 
     sprintf(getURL,"%s%.6f%s%.6f%s%s",AQ_URL1,USER_PARAM.OPEN_WEATHER_LATITUDE,AQ_URL2,USER_PARAM.OPEN_WEATHER_LONGITUDE,AQ_URL3,USER_PARAM.OPEN_WEATHER_DKEY);
-    printf("%s\n",getURL);
+    // printf("%s\n\r",getURL);
 
     HTTPClient http;
     http.begin(getURL);
@@ -685,7 +685,9 @@ int OpenWeatherOneCall::createAQ(int sizeCap)
     deserializeJson(doc, http.getString());
     doc.shrinkToFit();
 
-    quality = (struct airQuality *)calloc(1,sizeof(struct airQuality));
+	if(!quality) { // Avoid mmory leak
+		quality = (struct airQuality *)calloc(1,sizeof(struct airQuality));
+	}
 
     float coord_lon = doc["coord"]["lon"]; // -74.1975
     float coord_lat = doc["coord"]["lat"]; // 39.9533
@@ -719,7 +721,7 @@ int OpenWeatherOneCall::createCurrent(int sizeCap)
     int alertz = 0;
 
     sprintf(getURL,"%s?lat=%.6f&lon=%.6f&lang=%s%s&units=%s%s%s",DS_URL1,USER_PARAM.OPEN_WEATHER_LATITUDE,USER_PARAM.OPEN_WEATHER_LONGITUDE,USER_PARAM.OPEN_WEATHER_LANGUAGE,DS_URL2,units,DS_URL3,USER_PARAM.OPEN_WEATHER_DKEY);
-
+	// printf("%s\n\r", getURL);
 
     HTTPClient http;
     http.begin(getURL);
@@ -993,11 +995,11 @@ int OpenWeatherOneCall::createCurrent(int sizeCap)
                                 }
                         }
 
-                    printf("Number of ALERTS: %d\n\n",MAX_NUM_ALERTS);
+                    // printf("Number of ALERTS: %d\n\n",MAX_NUM_ALERTS);
 
                     if(!alert);
                     {
-                        alert = (struct ALERTS *)calloc(MAX_NUM_ALERTS,sizeof(struct ALERTS));
+                        alert = (struct ALERTS *)realloc(alert,MAX_NUM_ALERTS*sizeof(struct ALERTS));
                         if(alert == NULL)
                             {
                                 return 23;
@@ -1059,9 +1061,9 @@ int OpenWeatherOneCall::createCurrent(int sizeCap)
                         } //end for
 
                 }else{
-                // If alerts are not excluded but there are none, reset NUM_MAX_ALERTS and MEMORY
-                MAX_NUM_ALERTS = 0;
+                // If alerts are not excluded but there are none, Free potential allocated memory
                 OpenWeatherOneCall::freeAlertMem();
+				MAX_NUM_ALERTS = 0;
                 }
         }
 
@@ -1192,20 +1194,19 @@ int OpenWeatherOneCall::setExcludes(int EXCL)
     // Allocate MEM requirements for parser ****************************
     unsigned int EXCL_SIZES[] = {1010,3084,15934,4351,607}; //Alerts, Minutely, Hourly, Daily, Currently
     // Name the exclude options *********************
-    char* EXCL_NAMES[] = {"current", "daily", "hourly", "minutely", "alerts"};
+    char* EXCL_NAMES[] = {(char *)"current", (char *)"daily", (char *)"hourly", (char *)"minutely", (char *)"alerts"};
 
     exclude.all_excludes = EXCL; //<- Sets the individual bits to 1 for excludes
     strcpy(DS_URL2,"&exclude=");
 
-    int SIZE_X = (sizeof(EXCL_NAMES) / sizeof(EXCL_NAMES[0]));
+    int SIZE_X = (sizeof(EXCL_NAMES) / sizeof(EXCL_NAMES[0])) - 1;
 
     // Required to insert comma properly *****************************
     int comma_pos = exclude.all_excludes;
     int comma_sub = 16;
 
-
     // Add exclude names to URL and insert a comma *******************
-    for (int x = SIZE_X-1; x >= 0; x--)
+   for (int x = SIZE_X; x >= 0; x--)
         {
             if (exclude.all_excludes >> x & 1)
                 {
@@ -1234,15 +1235,10 @@ int OpenWeatherOneCall::setExcludes(int EXCL)
                             comma_pos -= comma_sub;
                         }
 
-
-                    if (x < (sizeof(EXCL_NAMES) / sizeof(EXCL_NAMES[0])) - 1)
-                        {
-                            excludeMemSize -= EXCL_SIZES[x];
-                        }
+					excludeMemSize -= EXCL_SIZES[x];
                 }
             comma_sub = comma_sub/2;
         }
-
     return excludeMemSize;
 }
 
@@ -1263,7 +1259,7 @@ int OpenWeatherOneCall::setExcl(int _EXCL)
 {
     if((_EXCL > 31) || (_EXCL < 0))
         {
-            USER_PARAM.OPEN_WEATHER_EXCLUDES = NULL;
+            USER_PARAM.OPEN_WEATHER_EXCLUDES = 0;
             return 14;
         }
     else
@@ -1323,14 +1319,11 @@ void OpenWeatherOneCall::freeCurrentMem(void)
 {
     if(current)
         {
-            free(current->summary);
-            current->summary = NULL;
-            free(current->main);
-            current->main = NULL;
+            if(current->summary) free(current->summary);
+            if(current->main)	 free(current->main);
             free(current);
             current = NULL;
         }
-
 }
 
 void OpenWeatherOneCall::freeForecastMem(void)
@@ -1339,32 +1332,26 @@ void OpenWeatherOneCall::freeForecastMem(void)
         {
             for( int x = 8; x > 0; x--)
                 {
-                    free(forecast[x-1].summary);
-                    free(forecast[x-1].main);
+                    if (forecast[x-1].summary) free(forecast[x-1].summary);
+					if (forecast[x-1].main)    free(forecast[x-1].main);
                 }
             free(forecast);
-            forecast[0].summary = NULL;
-            forecast[0].main = NULL;
             forecast = NULL;
         }
-
 }
 
 void OpenWeatherOneCall::freeHistoryMem(void)
 {
     if(history)
         {
-            for( int x = 24; x > 0; x--)
+            for( int x = 25; x > 0; x--)
                 {
-                    free(history[x-1].summary);
-                    free(history[x-1].main);
+                    if (history[x-1].summary) free(history[x-1].summary);
+                    if (history[x-1].main);   free(history[x-1].main);
                 }
             free(history);
-            history[0].summary = NULL;
-            history[0].main = NULL;
             history = NULL;
         }
-
 }
 
 void OpenWeatherOneCall::freeAlertMem(void)
@@ -1373,16 +1360,14 @@ void OpenWeatherOneCall::freeAlertMem(void)
         {
             for( int x = MAX_NUM_ALERTS; x > 0; x--)
                 {
-            free(alert[x].senderName);
-            free(alert[x].event);
-            free(alert[x].summary);
+					if (alert[x-1].senderName) 	free(alert[x-1].senderName);
+					if (alert[x-1].event) 		free(alert[x-1].event);
+					if (alert[x-1].summary)		free(alert[x-1].summary);
                 }
             free(alert);
-            alert[0].senderName = NULL;
-            alert[0].event = NULL;
-            alert[0].summary = NULL;
             alert = NULL;
         }
+	MAX_NUM_ALERTS = 0 ;
 }
 
 void OpenWeatherOneCall::freeHourMem(void)
@@ -1391,12 +1376,10 @@ void OpenWeatherOneCall::freeHourMem(void)
         {
             for( int x = 48; x > 0; x--)
                 {
-                    free(hour[x-1].summary);
-                    free(hour[x-1].main);
+                    if (hour[x-1].summary) free(hour[x-1].summary);
+                    if (hour[x-1].main)    free(hour[x-1].main);
                 }
             free(hour);
-            hour[0].summary = NULL;
-            hour[0].main = NULL;
             hour = NULL;
         }
 }
@@ -1422,7 +1405,7 @@ void OpenWeatherOneCall::freeQualityMem(void)
 char* OpenWeatherOneCall::getErrorMsgs(int _errMsg)
 {
     if((_errMsg > SIZEOF(errorMsgs)) || (_errMsg < 1))
-        return "Error Number Out of RANGE";
+        return (char *)"Error Number Out of RANGE";
     strcpy_P(buffer, (char*)pgm_read_dword(&(errorMsgs[_errMsg - 1])));
     return buffer;
 }
@@ -1430,7 +1413,6 @@ char* OpenWeatherOneCall::getErrorMsgs(int _errMsg)
 
 OpenWeatherOneCall::~OpenWeatherOneCall()
 {
-
     OpenWeatherOneCall::freeCurrentMem();
     OpenWeatherOneCall::freeForecastMem();
     OpenWeatherOneCall::freeAlertMem();
@@ -1438,7 +1420,6 @@ OpenWeatherOneCall::~OpenWeatherOneCall()
     OpenWeatherOneCall::freeMinuteMem();
     OpenWeatherOneCall::freeHistoryMem();
     OpenWeatherOneCall::freeQualityMem();
-
 }
 
 // Looks like this is the end
