@@ -10,7 +10,7 @@
    REVISION HISTORY
    See User Manual
 */
-#include <StreamUtils.h>
+// #include <StreamUtils.h>
 #include "OpenWeatherOneCall.h"
 void dateTimeConversion(long _epoch, char *_buffer, int _format);
 
@@ -741,7 +741,7 @@ int OpenWeatherOneCall::createCurrent(int sizeCap)
     DynamicJsonDocument doc(capacity);
     deserializeJson(doc, http.getStream()); // Increased stability
     
-    // Logg to serial port
+    // Send copy of http data to serial port
     // ReadLoggingStream loggingStream(http.getStream(), Serial);
     // deserializeJson(doc, loggingStream);
 
