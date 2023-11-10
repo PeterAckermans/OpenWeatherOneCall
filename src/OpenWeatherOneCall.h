@@ -69,11 +69,11 @@ public:
     int setHistory(int _HIS);
     int setDateTimeFormat(int _DTF);
     char* getErrorMsgs(int errorMsg);
-    char* nextLanguage(char * shrtPtr, char* lngPtr, int _langNum);
-    char* setLanguage(char * shortPtr);
+    char* nextLanguage(char* shrtPtr, char* lngPtr, int _langNum);
+    char* setLanguage(char* shortPtr);
     char* setLanguage(int _langC);
 
-
+	void getEpochTime(std::function<long()> callable);
 
     //Legacy Method
     int parseWeather(char* DKEY, char* GKEY, float SEEK_LATITUDE, float SEEK_LONGITUDE, bool SET_UNITS, int CITY_ID, int API_EXCLUDES, int GET_HISTORY);
@@ -218,11 +218,12 @@ public:
     {
         char* senderName; //[30] = "No Alert"; // "NWS Philadelphia - Mount Holly (New Jersey, Delaware, Southeastern Pennsylvania)"
         char* event; //[50] = "No Event"; // "Gale Watch"
+        char *summary;
         long alertStart; // 1604271600
         char startInfo[20];
         long alertEnd;
         char endInfo[20];
-        char *summary;
+		int nrAlerts;
     } *alert = NULL;
 
 
@@ -281,7 +282,9 @@ private:
     void freeHistoryMem(void);
     void freeQualityMem(void);
 
-    //Variables
+    std::function<long()> EpochTimeCallback = NULL;
+
+   //Variables
     // For eventual struct calls
     struct apiInfo
     {
@@ -301,7 +304,8 @@ private:
     int summary_len = 0;
 
     //BITFIELDS for exclude flags
-    typedef union FLAGS
+    // typedef union FLAGS This creates a warning in ARDUINO compiler
+    union FLAGS
     {
         struct
         {

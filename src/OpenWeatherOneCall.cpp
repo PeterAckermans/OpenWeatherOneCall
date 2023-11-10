@@ -10,7 +10,7 @@
    REVISION HISTORY
    See User Manual
 */
-
+#include <StreamUtils.h>
 #include "OpenWeatherOneCall.h"
 void dateTimeConversion(long _epoch, char *_buffer, int _format);
 
@@ -54,38 +54,34 @@ int OpenWeatherOneCall::parseWeather(void)
 
     unsigned int SIZE_CAPACITY = 32768;
 
-    // Bitwise function that sets the bits for the EXCLUDES argument
-    SIZE_CAPACITY = OpenWeatherOneCall::setExcludes(USER_PARAM.OPEN_WEATHER_EXCLUDES);
 
     if((USER_PARAM.OPEN_WEATHER_LATITUDE) || (USER_PARAM.OPEN_WEATHER_LONGITUDE))
         {
-            OpenWeatherOneCall::getLocationInfo();
+            error_code = OpenWeatherOneCall::getLocationInfo();
+            if(error_code) return error_code;
 
             if(USER_PARAM.OPEN_WEATHER_HISTORY)  //If Historical Weather is requested, no CURRENT weather returned
                 {
                     OpenWeatherOneCall::freeCurrentMem();
-					OpenWeatherOneCall::freeQualityMem(); // Free AIR quality memory
+                    OpenWeatherOneCall::freeQualityMem();
                     OpenWeatherOneCall::freeForecastMem();
                     OpenWeatherOneCall::freeAlertMem();
                     OpenWeatherOneCall::freeHourMem();
                     OpenWeatherOneCall::freeMinuteMem();
 
-                    int error_code = OpenWeatherOneCall::createHistory();
+                    error_code = OpenWeatherOneCall::createHistory();
                 }
             else
-                {
+                {    // Current waether call
                     OpenWeatherOneCall::freeHistoryMem();
-
                     // TEST AIR QUALITY CALL *********************
-                    OpenWeatherOneCall::createAQ(384);
-
-                    //********************************************
-                    int error_code = OpenWeatherOneCall::createCurrent(SIZE_CAPACITY);
+                    error_code = OpenWeatherOneCall::createAQ(384);
+                    if(error_code) return error_code;
+                    // Bitwise function that sets the bits for the EXCLUDES argument
+                    SIZE_CAPACITY = OpenWeatherOneCall::setExcludes(USER_PARAM.OPEN_WEATHER_EXCLUDES);
+                    error_code = OpenWeatherOneCall::createCurrent(SIZE_CAPACITY);
                 }
-            if(error_code)
-                {
-                    return error_code;
-                }
+                if(error_code) return error_code;
         }
     else
         {
@@ -188,6 +184,7 @@ int OpenWeatherOneCall::parseCityCoordinates(char* CTY_URL)
     int error_code = 0;
 
     HTTPClient http;
+    http.useHTTP10(true); // To enable http.getStream()
     http.begin(CTY_URL);
     int httpCode = http.GET();
     if(httpCode > 399)
@@ -209,8 +206,7 @@ int OpenWeatherOneCall::parseCityCoordinates(char* CTY_URL)
 
     const size_t capacity = JSON_ARRAY_SIZE(1) + JSON_OBJECT_SIZE(1) + 2*JSON_OBJECT_SIZE(2) + JSON_OBJECT_SIZE(4) + JSON_OBJECT_SIZE(5) + JSON_OBJECT_SIZE(6) + JSON_OBJECT_SIZE(13) + 270;
     DynamicJsonDocument doc(capacity);
-
-    deserializeJson(doc, http.getString());
+    deserializeJson(doc, http.getStream()); // Increased stability
 
     if(doc["coord"]["lon"])
         {
@@ -234,7 +230,6 @@ int OpenWeatherOneCall::parseCityCoordinates(char* CTY_URL)
 
     if(error_code)
         {
-            http.end();
             return error_code;
         }
 
@@ -282,11 +277,11 @@ int OpenWeatherOneCall::getIPLocation()
     return 0;
 }
 
-
 int OpenWeatherOneCall::getIPAPILocation(char* URL)
 {
     int error_code = 0;
     HTTPClient http;
+    http.useHTTP10(true); // To enable http.getStream()
     http.begin(URL);
     int ipapi_httpCode = http.GET();
 
@@ -308,7 +303,7 @@ int OpenWeatherOneCall::getIPAPILocation(char* URL)
     const size_t capacity = JSON_OBJECT_SIZE(26) + 490;
     DynamicJsonDocument doc(capacity);
 
-    deserializeJson(doc, http.getString());
+    deserializeJson(doc, http.getStream()); // Increased stability
 
     strncpy(location.CITY,doc["city"],60); // "Lakewood"
     strncpy(location.STATE,doc["region_code"],2); // "NJ"
@@ -344,6 +339,7 @@ int OpenWeatherOneCall::getLocationInfo()
     sprintf(locationURL,"https://api.bigdatacloud.net/data/reverse-geocode-client/?latitude=%f&longitude=%f",USER_PARAM.OPEN_WEATHER_LATITUDE,USER_PARAM.OPEN_WEATHER_LONGITUDE);
 
     HTTPClient http;
+    http.useHTTP10(true); // To enable http.getStream()
     http.begin(locationURL);             //<------------ Connect to OpenWeatherMap
 
     int httpCode = http.GET();
@@ -367,8 +363,8 @@ int OpenWeatherOneCall::getLocationInfo()
 
     //const size_t capacity = JSON_ARRAY_SIZE(4) + JSON_ARRAY_SIZE(5) + JSON_OBJECT_SIZE(2) + 2*JSON_OBJECT_SIZE(3) + JSON_OBJECT_SIZE(4) + JSON_OBJECT_SIZE(5) + 3*JSON_OBJECT_SIZE(6) + 2*JSON_OBJECT_SIZE(8) + JSON_OBJECT_SIZE(14) + 1050;
     DynamicJsonDocument doc(3072);
-
-    deserializeJson(doc, http.getString());
+    deserializeJson(doc, http.getStream()); // Increased stability
+    http.end();
 
     if(doc["locality"])
         {
@@ -376,7 +372,6 @@ int OpenWeatherOneCall::getLocationInfo()
         }
     else
         {
-            http.end();
             return 20;
         }
 
@@ -386,7 +381,6 @@ int OpenWeatherOneCall::getLocationInfo()
         }
     else
         {
-            http.end();
             return 20;
         }
 
@@ -396,66 +390,68 @@ int OpenWeatherOneCall::getLocationInfo()
         }
     else
         {
-            http.end();
             return 20;
         }
-
-
-    http.end();
 
     return 0;
 }
 
-
 int OpenWeatherOneCall::createHistory()
 {
+    int httpCode;
     int error_code = 0;
-    char historyURL[200] = {0};
-
+    char getURL[220];
+    long tempEPOCH ;
+    HTTPClient http;
+    
     if(USER_PARAM.OPEN_WEATHER_HISTORY > 5)
         {
             return 16;
         }
 
-    //Gets Timestamp for EPOCH calculation below
-    char tempURL[200];
-    sprintf(tempURL,"https://api.openweathermap.org/data/2.5/onecall?lat=%.6f&lon=%.6f&exclude=minutely,hourly,daily,alerts&units=IMPERIAL&appid=%s",USER_PARAM.OPEN_WEATHER_LATITUDE,USER_PARAM.OPEN_WEATHER_LONGITUDE,USER_PARAM.OPEN_WEATHER_DKEY);
-    // printf("%s\n\r",tempURL);
-
-    HTTPClient http;
-    http.begin(tempURL);
-    int httpCode = http.GET();
-
-    if (httpCode > 399)
+    if(EpochTimeCallback != NULL) 
         {
-            if(httpCode == 401)
+            tempEPOCH = OpenWeatherOneCall::EpochTimeCallback();
+        } 
+    else 
+        {
+            //Gets Timestamp for EPOCH calculation below
+            sprintf(getURL,"https://api.openweathermap.org/data/2.5/onecall?lat=%.6f&lon=%.6f&exclude=minutely,hourly,daily,alerts&units=IMPERIAL&appid=%s",USER_PARAM.OPEN_WEATHER_LATITUDE,USER_PARAM.OPEN_WEATHER_LONGITUDE,USER_PARAM.OPEN_WEATHER_DKEY);
+
+            http.useHTTP10(true); // To enable http.getStream()
+            http.begin(getURL);
+            httpCode = http.GET();
+
+            if (httpCode > 399)
                 {
-                    http.end();
-                    return 22;
+                    if(httpCode == 401)
+                        {
+                            http.end();
+                            return 22;
+                        }
+                    else
+                        {
+                            http.end();
+                            return 21;
+                        }
                 }
-            else
-                {
-                    http.end();
-                    return 21;
-                }
+
+            DynamicJsonDocument toc(768);
+            deserializeJson(toc, http.getStream()); // Increased stability
+            http.end();
+
+            JsonObject toc_current = toc["current"];
+            tempEPOCH = toc_current["dt"]; // 1608323864
         }
-
-
-    DynamicJsonDocument toc(768);
-    deserializeJson(toc, http.getString());
-
-    JsonObject toc_current = toc["current"];
-    long tempEPOCH = toc_current["dt"]; // 1608323864
-
+    
+    // Subtract the history number of days in seconds
     tempEPOCH = tempEPOCH - (86400 * USER_PARAM.OPEN_WEATHER_HISTORY);
 
-    http.end();
-
     //Timemachine request to OWM
-    sprintf(historyURL,"%s?lat=%.6f&lon=%.6f%s%ld&units=%s%s%s",TS_URL1,USER_PARAM.OPEN_WEATHER_LATITUDE,USER_PARAM.OPEN_WEATHER_LONGITUDE,TS_URL2,tempEPOCH,units,DS_URL3,USER_PARAM.OPEN_WEATHER_DKEY);
-    // printf("%s\n\r",historyURL);
-
-    http.begin(historyURL);
+    sprintf(getURL,"%s?lat=%.6f&lon=%.6f%s%ld&units=%s%s%s",TS_URL1,USER_PARAM.OPEN_WEATHER_LATITUDE,USER_PARAM.OPEN_WEATHER_LONGITUDE,TS_URL2,tempEPOCH,units,DS_URL3,USER_PARAM.OPEN_WEATHER_DKEY);
+    
+    http.useHTTP10(true); // To enable http.getStream()
+    http.begin(getURL);
     httpCode = http.GET();
 
     if (httpCode > 399)
@@ -472,10 +468,8 @@ int OpenWeatherOneCall::createHistory()
                 }
         }
 
-
     DynamicJsonDocument doc(9000);
-
-    deserializeJson(doc, http.getString());
+    deserializeJson(doc, http.getStream()); // Increased stability
 
     strncpy(location.timezone,doc["timezone"],50);
     location.timezoneOffset = doc["timezone_offset"];
@@ -483,6 +477,7 @@ int OpenWeatherOneCall::createHistory()
     if(!history)
         {
             history = (struct HISTORICAL *)calloc(25,sizeof(struct HISTORICAL));
+            if(history == NULL) return 23;
         }
 
     //Current in historical is the time of the request on that day
@@ -559,9 +554,11 @@ int OpenWeatherOneCall::createHistory()
     history[0].id = current_weather_0["id"]; // 800
 
     history[0].main = (char *)realloc(history[0].main,sizeof(char) * strlen(current_weather_0["main"])+1);
+    if(history[0].main == NULL) return 23;
     strncpy(history[0].main,current_weather_0["main"],strlen(current_weather_0["main"])+1);
 
     history[0].summary = (char *)realloc(history[0].summary,sizeof(char) * strlen(current_weather_0["description"])+1);
+    if(history[0].summary == NULL) return 23;
     strncpy(history[0].summary,current_weather_0["description"],strlen(current_weather_0["description"])+1);
 
     strncpy(history[0].icon,current_weather_0["icon"],strlen(current_weather_0["icon"])+1);
@@ -642,9 +639,11 @@ int OpenWeatherOneCall::createHistory()
             history[x].id = hourly_0_weather_0["id"]; // 800
 
             history[x].main = (char *)realloc(history[x].main,sizeof(char) * strlen(hourly_0_weather_0["main"])+1);
+            if(history[x].main == NULL) return 23;
             strncpy(history[x].main,hourly_0_weather_0["main"],strlen(hourly_0_weather_0["main"])+1);
 
             history[x].summary = (char *)realloc(history[x].summary,sizeof(char) * strlen(hourly_0_weather_0["description"])+1);
+            if(history[x].summary == NULL) return 23;
             strncpy(history[x].summary,hourly_0_weather_0["description"],strlen(hourly_0_weather_0["description"])+1);
 
             strncpy(history[x].icon,hourly_0_weather_0["icon"],strlen(hourly_0_weather_0["icon"])+1);
@@ -658,12 +657,12 @@ int OpenWeatherOneCall::createHistory()
 
 int OpenWeatherOneCall::createAQ(int sizeCap)
 {
-    char getURL[200] = {0};
+    char getURL[200];
 
     sprintf(getURL,"%s%.6f%s%.6f%s%s",AQ_URL1,USER_PARAM.OPEN_WEATHER_LATITUDE,AQ_URL2,USER_PARAM.OPEN_WEATHER_LONGITUDE,AQ_URL3,USER_PARAM.OPEN_WEATHER_DKEY);
-    // printf("%s\n\r",getURL);
 
     HTTPClient http;
+    http.useHTTP10(true); // To enable http.getStream()
     http.begin(getURL);
     int httpCode = http.GET();
 
@@ -682,12 +681,13 @@ int OpenWeatherOneCall::createAQ(int sizeCap)
 
     const size_t capacity = sizeCap;
     DynamicJsonDocument doc(capacity);
-    deserializeJson(doc, http.getString());
+    deserializeJson(doc, http.getStream()); // Increased stability
     doc.shrinkToFit();
 
-	if(!quality) { // Avoid mmory leak
-		quality = (struct airQuality *)calloc(1,sizeof(struct airQuality));
-	}
+    if(!quality) { // Avoid memory leak
+        quality = (struct airQuality *)calloc(1,sizeof(struct airQuality));
+        if(quality == NULL) return 23;
+    }
 
     float coord_lon = doc["coord"]["lon"]; // -74.1975
     float coord_lat = doc["coord"]["lat"]; // 39.9533
@@ -716,14 +716,11 @@ int OpenWeatherOneCall::createAQ(int sizeCap)
 
 int OpenWeatherOneCall::createCurrent(int sizeCap)
 {
-
-    char getURL[200] = {0};
-    int alertz = 0;
-
+    char getURL[200];
     sprintf(getURL,"%s?lat=%.6f&lon=%.6f&lang=%s%s&units=%s%s%s",DS_URL1,USER_PARAM.OPEN_WEATHER_LATITUDE,USER_PARAM.OPEN_WEATHER_LONGITUDE,USER_PARAM.OPEN_WEATHER_LANGUAGE,DS_URL2,units,DS_URL3,USER_PARAM.OPEN_WEATHER_DKEY);
-	// printf("%s\n\r", getURL);
 
     HTTPClient http;
+    http.useHTTP10(true); // To enable http.getStream()
     http.begin(getURL);
     int httpCode = http.GET();
 
@@ -740,11 +737,18 @@ int OpenWeatherOneCall::createCurrent(int sizeCap)
 
         }
 
-    const size_t capacity = sizeCap;
+    const size_t capacity = sizeCap+100;
     DynamicJsonDocument doc(capacity);
-    deserializeJson(doc, http.getString());
+    deserializeJson(doc, http.getStream()); // Increased stability
+    
+    // Logg to serial port
+    // ReadLoggingStream loggingStream(http.getStream(), Serial);
+    // deserializeJson(doc, loggingStream);
+
+    http.end();
     doc.shrinkToFit();
 
+    if (doc["timezone"] == NULL) return 23;
     strncpy(location.timezone,doc["timezone"],50);
     location.timezoneOffset = doc["timezone_offset"];
 
@@ -757,10 +761,7 @@ int OpenWeatherOneCall::createCurrent(int sizeCap)
             if(!current)
                 {
                     current = (struct nowData *)calloc(1,sizeof(struct nowData));
-                    if(current == NULL)
-                        {
-                            return 23;
-                        }
+                    if(current == NULL) return 23;
                 }
 
             JsonObject currently = doc["current"];
@@ -773,7 +774,6 @@ int OpenWeatherOneCall::createCurrent(int sizeCap)
                     dateTimeConversion(tempTime,current->readableDateTime,USER_PARAM.OPEN_WEATHER_DATEFORMAT);
                     dateTimeConversion(tempTime,current->readableWeekdayName,9);
                 }
-
 
             current->sunriseTime = currently["sunrise"]; // 1612267442
 
@@ -792,8 +792,6 @@ int OpenWeatherOneCall::createCurrent(int sizeCap)
                     tempTime += location.timezoneOffset;
                     dateTimeConversion(tempTime,current->readableSunset,USER_PARAM.OPEN_WEATHER_DATEFORMAT+4);
                 }
-
-
 
             current->temperature = currently["temp"]; // 287.59
             current->apparentTemperature = currently["feels_like"]; // 281.42
@@ -831,24 +829,24 @@ int OpenWeatherOneCall::createCurrent(int sizeCap)
 
                 } else current->rainVolume = 0;
 
+            if (currently["weather"][0]["id"]) 
+            {
+                current->id = currently["weather"][0]["id"];
+            }
 
+            if(currently["weather"][0]["main"]) 
+            {
+                current->main = (char *)realloc(current->main,sizeof(char) * strlen(currently["weather"][0]["main"])+1);
+                if(current->main == NULL) return 23;
+                strncpy(current->main,currently["weather"][0]["main"],strlen(currently["weather"][0]["main"])+1);
+            }
 
-
-            current->id = currently["weather"][0]["id"];
-
-            current->main = (char *)realloc(current->main,sizeof(char) * strlen(currently["weather"][0]["main"])+1);
-            if(current->main == NULL)
-                {
-                    return 23;
-                }
-            strncpy(current->main,currently["weather"][0]["main"],strlen(currently["weather"][0]["main"])+1);
-
-            current->summary = (char *)realloc(current->summary,sizeof(char) * strlen(currently["weather"][0]["description"])+1);
-            if(current->summary == NULL)
-                {
-                    return 23;
-                }
-            strncpy(current->summary,currently["weather"][0]["description"],strlen(currently["weather"][0]["description"])+1);
+            if(currently["weather"][0]["description"]) 
+            {
+                current->summary = (char *)realloc(current->summary,sizeof(char) * strlen(currently["weather"][0]["description"])+1);
+                if(current->summary == NULL) return 23;
+                strncpy(current->summary,currently["weather"][0]["description"],strlen(currently["weather"][0]["description"])+1);
+            }
 
             strncpy(current->icon,currently["weather"][0]["icon"],strlen(currently["weather"][0]["icon"])+1);
         }
@@ -862,10 +860,7 @@ int OpenWeatherOneCall::createCurrent(int sizeCap)
             if(!forecast)
                 {
                     forecast = (struct futureData *)calloc(8,sizeof(struct futureData));
-                    if(forecast == NULL)
-                        {
-                            return 23;
-                        }
+                    if(forecast == NULL) return 23;
                 }
 
             JsonArray daily = doc["daily"];
@@ -928,23 +923,16 @@ int OpenWeatherOneCall::createCurrent(int sizeCap)
                     if(daily[x]["weather"][0]["main"])
                         {
                             forecast[x].main = (char *)realloc(forecast[x].main,sizeof(char) * strlen(daily[x]["weather"][0]["main"])+1);
-                            if(forecast[x].main == NULL)
-                                {
-                                    return 23;
-                                }
+                            if(forecast[x].main == NULL) return 23;
                             strncpy(forecast[x].main,daily[x]["weather"][0]["main"],strlen(daily[x]["weather"][0]["main"])+1);
                         }
 
                     if(daily[x]["weather"][0]["description"])
                         {
                             forecast[x].summary = (char *)realloc(forecast[x].summary,sizeof(char) * strlen(daily[x]["weather"][0]["description"])+1);
-                            if(forecast[x].summary == NULL)
-                                {
-                                    return 23;
-                                }
+                            if(forecast[x].summary == NULL) return 23;
                             strncpy(forecast[x].summary,daily[x]["weather"][0]["description"],strlen(daily[x]["weather"][0]["description"])+1);
                         }
-
                     strncpy(forecast[x].icon,daily[x]["weather"][0]["icon"],strlen(daily[x]["weather"][0]["icon"])+1);
 
                     forecast[x].cloudCover = daily[x]["clouds"]; // 95
@@ -984,51 +972,42 @@ int OpenWeatherOneCall::createCurrent(int sizeCap)
         }
     else
         {
-            if(doc["alerts"][0])
+            //count alerts here
+            int z = 0;
+            while(doc["alerts"][z] and (z<10)) z++ ;
+                    
+            if(z == 0) // 
                 {
-                    //count alerts here
-                    for(int z = 0; z < 10; z++)
-                        {
-                            if(doc["alerts"][z])
-                                {
-                                    MAX_NUM_ALERTS = z+1;
-                                }
-                        }
+                    // If alerts are not excluded but there are none, Free potential allocated memory
+                    OpenWeatherOneCall::freeAlertMem();
+                }else{
+                    // IF new nr of alerts is lower as current alert memory, Free Alert memory 
+                    // Avoid the CHAR pointers SenderName, Event and Summary aren't freeed resulting in memory leaks.
+                    if (z < alert[0].nrAlerts) OpenWeatherOneCall::freeAlertMem();
 
-                    // printf("Number of ALERTS: %d\n\n",MAX_NUM_ALERTS);
-
-                    if(!alert);
-                    {
-                        alert = (struct ALERTS *)realloc(alert,MAX_NUM_ALERTS*sizeof(struct ALERTS));
-                        if(alert == NULL)
-                            {
-                                return 23;
-                            }
-                    }
+                    // Create or extend allocated alert data 
+                    MAX_NUM_ALERTS = z;
+                    alert = (struct ALERTS *)realloc(alert,MAX_NUM_ALERTS*sizeof(struct ALERTS));
+                    if(alert == NULL) return 23;
 
                     //Start for loop of maximum alerts here
                     for(int x = 0; x < MAX_NUM_ALERTS; x++)
                         {
-
+                            alert[x].nrAlerts = MAX_NUM_ALERTS ; // So we know how many alerts there are
+                            
                             JsonObject ALERTS_0 = doc["alerts"][x];
 
                             if(ALERTS_0["sender_name"])
                                 {
                                     alert[x].senderName = (char *)realloc(alert[x].senderName,sizeof(char) * strlen(ALERTS_0["sender_name"])+1);
-                                    if(alert[x].senderName == NULL)
-                                        {
-                                            return 23;
-                                        }
+                                    if(alert[x].senderName == NULL) return 23;
                                     strncpy(alert[x].senderName,ALERTS_0["sender_name"],strlen(ALERTS_0["sender_name"])+1);
                                 }
 
                             if(ALERTS_0["event"])
                                 {
                                     alert[x].event = (char *)realloc(alert[x].event,sizeof(char) * strlen(ALERTS_0["event"])+1);
-                                    if(alert[x].event == NULL)
-                                        {
-                                            return 23;
-                                        }
+                                    if(alert[x].event == NULL) return 23;
                                     strncpy(alert[x].event,ALERTS_0["event"],strlen(ALERTS_0["event"])+1);
 
                                 }
@@ -1052,18 +1031,10 @@ int OpenWeatherOneCall::createCurrent(int sizeCap)
                             if(ALERTS_0["description"])
                                 {
                                     alert[x].summary = (char *)realloc(alert[x].summary,sizeof(char) * strlen(ALERTS_0["description"])+1);
-                                    if(alert[x].summary == NULL)
-                                        {
-                                            return 23;
-                                        }
+                                    if(alert[x].summary == NULL) return 23;
                                     strncpy(alert[x].summary,ALERTS_0["description"],strlen(ALERTS_0["description"])+1);
                                 }
                         } //end for
-
-                }else{
-                // If alerts are not excluded but there are none, Free potential allocated memory
-                OpenWeatherOneCall::freeAlertMem();
-				MAX_NUM_ALERTS = 0;
                 }
         }
 
@@ -1079,29 +1050,17 @@ int OpenWeatherOneCall::createCurrent(int sizeCap)
                     if(!hour)
                         {
                             hour = (struct HOURLY *)calloc(48, sizeof(struct HOURLY));
-                            if(hour == NULL)
-                                {
-                                    return 23;
-                                }
+                            if(hour == NULL) return 23;
                         }
 
                     JsonArray hourly = doc["hourly"];
                     for(int h = 0; h < 48; h++)
                         {
-
                             JsonObject hourly_0 = hourly[h];
-                            hour[h].dayTime = hourly_0["dt"]; // 1604336400
-                            hour[h].temperature = hourly_0["temp"]; // 46.58
-                            hour[h].apparentTemperature = hourly_0["feels_like"]; // 28.54
-                            hour[h].pressure = hourly_0["pressure"]; // 1015
-                            hour[h].humidity = hourly_0["humidity"]; // 31
-                            hour[h].dewPoint = hourly_0["dew_point"]; // 19.2
-                            hour[h].cloudCover = hourly_0["clouds"]; // 20
-                            hour[h].visibility = hourly_0["visibility"]; // 10000
-                            hour[h].windSpeed = hourly_0["wind_speed"]; // 22.77
-                            hour[h].windBearing = hourly_0["wind_deg"]; // 300
 
 
+                                hour[h].windBearing = hourly_0["wind_deg"]; // 300
+                            }
                             if(hourly_0["snow"])
                                 {
                                     if(USER_PARAM.OPEN_WEATHER_UNITS == 2)
@@ -1126,27 +1085,20 @@ int OpenWeatherOneCall::createCurrent(int sizeCap)
 
                             JsonObject hourly_0_weather_0 = hourly_0["weather"][0];
                             hour[h].id = hourly_0_weather_0["id"]; // 801
-
                             if(hourly_0_weather_0["main"])
                                 {
-                                    hour[h].main = (char *)realloc(hour[h].main,sizeof(char) * strlen(hourly_0_weather_0["main"])+1);
-                                    if(hour[h].main == NULL)
-                                        {
                                             return 23;
-                                        }
+                                    hour[h].main = (char *)realloc(hour[h].main,sizeof(char) * strlen(hourly_0_weather_0["main"])+2);
+                                    if(hour[h].main == NULL) return 23;
                                     strncpy(hour[h].main,hourly_0_weather_0["main"],strlen(hourly_0_weather_0["main"])+1);
                                 }
 
                             if(hourly_0_weather_0["description"])
                                 {
-                                    hour[h].summary = (char *)realloc(hour[h].summary,sizeof(char) * strlen(hourly_0_weather_0["description"])+1);
-                                    if(hour[h].summary == NULL)
-                                        {
-                                            return 23;
-                                        }
+                                    hour[h].summary = (char *)realloc(hour[h].summary,sizeof(char) * strlen(hourly_0_weather_0["description"])+2);
+                                    if(hour[h].summary == NULL) return 23;
                                     strncpy(hour[h].summary,hourly_0_weather_0["description"],strlen(hourly_0_weather_0["description"])+1);
                                 }
-
 
                             strncpy(hour[h].icon,hourly_0_weather_0["icon"],strlen(hourly_0_weather_0["icon"])+1);
 
@@ -1167,10 +1119,7 @@ int OpenWeatherOneCall::createCurrent(int sizeCap)
                     if(!minute)
                         {
                             minute = (struct MINUTELY *)calloc(61, sizeof(struct MINUTELY));
-                            if(minute == NULL)
-                                {
-                                    return 23;
-                                }
+                            if(minute == NULL) return 23;
                         }
 
 
@@ -1184,7 +1133,6 @@ int OpenWeatherOneCall::createCurrent(int sizeCap)
                 }
         }
 
-    http.end();
     return 0;
 }
 
@@ -1235,7 +1183,7 @@ int OpenWeatherOneCall::setExcludes(int EXCL)
                             comma_pos -= comma_sub;
                         }
 
-					excludeMemSize -= EXCL_SIZES[x];
+                    excludeMemSize -= EXCL_SIZES[x];
                 }
             comma_sub = comma_sub/2;
         }
@@ -1320,7 +1268,7 @@ void OpenWeatherOneCall::freeCurrentMem(void)
     if(current)
         {
             if(current->summary) free(current->summary);
-            if(current->main)	 free(current->main);
+            if(current->main)     free(current->main);
             free(current);
             current = NULL;
         }
@@ -1333,7 +1281,7 @@ void OpenWeatherOneCall::freeForecastMem(void)
             for( int x = 8; x > 0; x--)
                 {
                     if (forecast[x-1].summary) free(forecast[x-1].summary);
-					if (forecast[x-1].main)    free(forecast[x-1].main);
+                    if (forecast[x-1].main)    free(forecast[x-1].main);
                 }
             free(forecast);
             forecast = NULL;
@@ -1358,16 +1306,16 @@ void OpenWeatherOneCall::freeAlertMem(void)
 {
     if(alert)
         {
-            for( int x = MAX_NUM_ALERTS; x > 0; x--)
-                {
-					if (alert[x-1].senderName) 	free(alert[x-1].senderName);
-					if (alert[x-1].event) 		free(alert[x-1].event);
-					if (alert[x-1].summary)		free(alert[x-1].summary);
+            for( int x = alert[0].nrAlerts; x > 0; x--)
+                {    // Free all char pointers
+                    if (alert[x-1].senderName)     free(alert[x-1].senderName);
+                    if (alert[x-1].event)         free(alert[x-1].event);
+                    if (alert[x-1].summary)        free(alert[x-1].summary);
                 }
             free(alert);
             alert = NULL;
         }
-	MAX_NUM_ALERTS = 0 ;
+    MAX_NUM_ALERTS = 0 ;
 }
 
 void OpenWeatherOneCall::freeHourMem(void)
@@ -1420,6 +1368,11 @@ OpenWeatherOneCall::~OpenWeatherOneCall()
     OpenWeatherOneCall::freeMinuteMem();
     OpenWeatherOneCall::freeHistoryMem();
     OpenWeatherOneCall::freeQualityMem();
+}
+
+// Allow application to use it's own Epochtime
+void OpenWeatherOneCall::getEpochTime(std::function<long()> callable){
+    EpochTimeCallback = callable;
 }
 
 // Looks like this is the end
