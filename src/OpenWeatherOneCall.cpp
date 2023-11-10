@@ -1057,8 +1057,17 @@ int OpenWeatherOneCall::createCurrent(int sizeCap)
                     for(int h = 0; h < 48; h++)
                         {
                             JsonObject hourly_0 = hourly[h];
-
-
+                            if (hourly_0) 
+                            {
+                                hour[h].dayTime = hourly_0["dt"]; // 1604336400
+                                hour[h].temperature = hourly_0["temp"]; // 46.58
+                                hour[h].apparentTemperature = hourly_0["feels_like"]; // 28.54
+                                hour[h].pressure = hourly_0["pressure"]; // 1015
+                                hour[h].humidity = hourly_0["humidity"]; // 31
+                                hour[h].dewPoint = hourly_0["dew_point"]; // 19.2
+                                hour[h].cloudCover = hourly_0["clouds"]; // 20
+                                hour[h].visibility = hourly_0["visibility"]; // 10000
+                                hour[h].windSpeed = hourly_0["wind_speed"]; // 22.77
                                 hour[h].windBearing = hourly_0["wind_deg"]; // 300
                             }
                             if(hourly_0["snow"])
@@ -1087,7 +1096,6 @@ int OpenWeatherOneCall::createCurrent(int sizeCap)
                             hour[h].id = hourly_0_weather_0["id"]; // 801
                             if(hourly_0_weather_0["main"])
                                 {
-                                            return 23;
                                     hour[h].main = (char *)realloc(hour[h].main,sizeof(char) * strlen(hourly_0_weather_0["main"])+2);
                                     if(hour[h].main == NULL) return 23;
                                     strncpy(hour[h].main,hourly_0_weather_0["main"],strlen(hourly_0_weather_0["main"])+1);
