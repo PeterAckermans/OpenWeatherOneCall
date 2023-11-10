@@ -144,9 +144,9 @@ public:
         long dayTime; // 1582088400
         char readableDateTime[20];
         long sunriseTime; // 1582112760
-        char readableSunrise[20];
+        char readableSunrise[5];
         long sunsetTime; // 1582151880
-        char readableSunset[20];
+        char readableSunset[5];
 
         float temperatureDay; // 51.24
         float temperatureLow; // 30.17
@@ -218,24 +218,24 @@ public:
     {
         char* senderName; //[30] = "No Alert"; // "NWS Philadelphia - Mount Holly (New Jersey, Delaware, Southeastern Pennsylvania)"
         char* event; //[50] = "No Event"; // "Gale Watch"
-        char *summary;
         long alertStart; // 1604271600
         char startInfo[20];
         long alertEnd;
         char endInfo[20];
+        char *summary;
 		int nrAlerts;
     } *alert = NULL;
 
 
     struct HISTORICAL
     {
-        char weekDayName[20];
+        char weekDayName[4];
         long dayTime; // 1604242490
         char readableDateTime[20];
         long sunrise; // 1604230151
-        char readableSunrise[20];
+        char readableSunrise[5];
         long sunset; // 1604267932
-        char readableSunset[20];
+        char readableSunset[5];
         float temperature; // 285.9
         float apparentTemperature; // 283.42
         float pressure; // 1016
