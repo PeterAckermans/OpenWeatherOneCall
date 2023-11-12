@@ -26,6 +26,8 @@ const char string_20[] PROGMEM = "HTTP Err OpenWeatherMap";
 const char string_21[] PROGMEM = "Malformed API";
 const char string_22[] PROGMEM = "MALLOC FAIL";
 const char string_23[] PROGMEM = "LAT/LON NOT SET";
+const char string_24[] PROGMEM = "deserializeJsonJSON failed";
+
 
 const char *const errorMsgs[] PROGMEM =
 {
@@ -52,7 +54,8 @@ const char *const errorMsgs[] PROGMEM =
   string_20,
   string_21,
   string_22,
-  string_23
+  string_23,
+  string_24
 };
 
 

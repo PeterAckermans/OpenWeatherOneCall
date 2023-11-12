@@ -203,7 +203,7 @@ public:
         char* summary; // "few clouds"
         char icon[4]; // "02d"
         float pop; // 0
-    } *hour = NULL;
+    } *hour = NULL; // 48 hour forecast
 
 
 
@@ -211,7 +211,7 @@ public:
     {
         long dayTime; // 1604341320
         float precipitation; // 0
-    } *minute = NULL; //[61]
+    } *minute = NULL; //[61] minutes forecast
 
 
     struct ALERTS
