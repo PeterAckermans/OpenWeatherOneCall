@@ -400,7 +400,7 @@ int OpenWeatherOneCall::createHistory()
                     return ( (httpCode == 401) ? 22 : 21 );
                 }
 
-            DynamicJsonDocument toc(768);
+            DynamicJsonDocument toc(1024);
 #ifdef DEBUG_TO_SERIAL
 	// Send copy of http data to serial port
 	ReadLoggingStream loggingStream(http.getStream(), Serial);
@@ -439,7 +439,7 @@ int OpenWeatherOneCall::createHistory()
 			return ( (httpCode == 401) ? 22 : 21 );
 		}
 
-    DynamicJsonDocument doc(9000);
+    DynamicJsonDocument doc(16384);
 #ifdef DEBUG_TO_SERIAL
 	// Send copy of http data to serial port
 	ReadLoggingStream loggingStream(http.getStream(), Serial);
