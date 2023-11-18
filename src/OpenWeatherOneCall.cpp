@@ -397,7 +397,9 @@ int OpenWeatherOneCall::createHistory()
             if (httpCode > 399)
                 {
 					http.end();
-                    return ( (httpCode == 401) ? 22 : 21 );
+					if (httpCode == 401) return 22;
+					if (httpCode == 429) return 25;
+					return 21;
                 }
 
             DynamicJsonDocument toc(1024);
@@ -436,7 +438,9 @@ int OpenWeatherOneCall::createHistory()
 	if (httpCode > 399)
 		{
 			http.end();
-			return ( (httpCode == 401) ? 22 : 21 );
+			if (httpCode == 401) return 22;
+			if (httpCode == 429) return 25;
+			return 21;
 		}
 
     DynamicJsonDocument doc(16384);
@@ -638,7 +642,9 @@ int OpenWeatherOneCall::createAQ(int sizeCap)
 	if (httpCode > 399)
 		{
 			http.end();
-			return ( (httpCode == 401) ? 22 : 21 );
+			if (httpCode == 401) return 22;
+			if (httpCode == 429) return 25;
+			return 21;
 		}
 
     const size_t capacity = sizeCap;
@@ -702,7 +708,9 @@ int OpenWeatherOneCall::createCurrent(int sizeCap)
 	if (httpCode > 399)
 		{
 			http.end();
-			return ( (httpCode == 401) ? 22 : 21 );
+			if (httpCode == 401) return 22;
+			if (httpCode == 429) return 25;
+			return 21;
 		}
 
     const size_t capacity = sizeCap;

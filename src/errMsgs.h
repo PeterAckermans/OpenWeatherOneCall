@@ -22,12 +22,12 @@ const char string_16[] PROGMEM = "Malformed API Big Cloud";
 const char string_17[] PROGMEM = "404 Big Cloud";
 const char string_18[] PROGMEM = "Unknown http err Big Cloud";
 const char string_19[] PROGMEM = "Locality JSON error";
-const char string_20[] PROGMEM = "HTTP Err OpenWeatherMap";
-const char string_21[] PROGMEM = "Malformed API";
+const char string_20[] PROGMEM = "OpenWeatherMap HTTP Error";
+const char string_21[] PROGMEM = "OpenWeatherMap malformed API";
 const char string_22[] PROGMEM = "MALLOC FAIL";
 const char string_23[] PROGMEM = "LAT/LON NOT SET";
 const char string_24[] PROGMEM = "deserializeJsonJSON failed";
-
+const char string_25[] PROGMEM = "OpenWeather account temporary blocked";
 
 const char *const errorMsgs[] PROGMEM =
 {
@@ -55,7 +55,8 @@ const char *const errorMsgs[] PROGMEM =
   string_21,
   string_22,
   string_23,
-  string_24
+  string_24,
+  string_25
 };
 
 
