@@ -19,7 +19,7 @@
 // #include <TelnetSpy.h>          // https://github.com/yasheena/telnetspy
 // TelnetSpy USE_SERIAL;
 // // #define USE_SERIAL  SERIALTelnet
-#define USE_SERIAL  serial
+#define USE_SERIAL  Serial
 
 #include "OpenWeatherOneCall.h"
 void dateTimeConversion(long _epoch, char *_buffer, int _format);
