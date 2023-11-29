@@ -14,12 +14,12 @@
 
 #ifdef DEBUG_TO_SERIAL
 	#include <StreamUtils.h>  // Install: https://github.com/bblanchon/ArduinoStreamUtils
-#endif
 
-// #include <TelnetSpy.h>          // https://github.com/yasheena/telnetspy
-// TelnetSpy USE_SERIAL;
-// // #define USE_SERIAL  SERIALTelnet
-#define USE_SERIAL  Serial
+	#include <TelnetSpy.h>          // https://github.com/yasheena/telnetspy
+	TelnetSpy USE_SERIAL;
+#else
+	#define USE_SERIAL  Serial
+#endif
 
 #include "OpenWeatherOneCall.h"
 void dateTimeConversion(long _epoch, char *_buffer, int _format);
@@ -188,6 +188,7 @@ int OpenWeatherOneCall::parseCityCoordinates(char* CTY_URL)
 	// Send copy of http data to serial port
 	ReadLoggingStream loggingStream(http.getStream(), USE_SERIAL);
 	DeserializationError JSON_error = deserializeJson(doc, loggingStream);
+	OpenWeatherOneCall::setExcl(-1);
 #else
 	DeserializationError JSON_error = deserializeJson(doc, http.getStream()); // Increased stability
 #endif
@@ -268,6 +269,7 @@ int OpenWeatherOneCall::getIPAPILocation(char* URL)
 	// Send copy of http data to serial port
 	ReadLoggingStream loggingStream(http.getStream(), USE_SERIAL);
 	DeserializationError JSON_error = deserializeJson(doc, loggingStream);
+	OpenWeatherOneCall::setExcl(-1);
 #else
 	DeserializationError JSON_error = deserializeJson(doc, http.getStream()); // Increased stability
 #endif
@@ -303,6 +305,11 @@ void OpenWeatherOneCall::initAPI(void)
 
 int OpenWeatherOneCall::getLocationInfo()
 {
+static bool bDone = false ;
+
+	if (bDone) return 0;
+	bDone = true;
+	
     int error_code = 0;
 
     char locationURL[200];
@@ -310,6 +317,7 @@ int OpenWeatherOneCall::getLocationInfo()
     sprintf(locationURL,"https://api.bigdatacloud.net/data/reverse-geocode-client/?latitude=%f&longitude=%f\0",USER_PARAM.OPEN_WEATHER_LATITUDE,USER_PARAM.OPEN_WEATHER_LONGITUDE);
 #ifdef DEBUG_TO_SERIAL
 	USE_SERIAL.printf("\n\r%s\n\r",locationURL);
+	OpenWeatherOneCall::setExcl(-1);
 #endif
     HTTPClient http;
     http.useHTTP10(true); // To enable http.getStream()
@@ -329,6 +337,7 @@ int OpenWeatherOneCall::getLocationInfo()
 	// Send copy of http data to serial port
 	ReadLoggingStream loggingStream(http.getStream(), USE_SERIAL);
 	DeserializationError JSON_error = deserializeJson(doc, loggingStream);
+	OpenWeatherOneCall::setExcl(-1);
 #else
 	DeserializationError JSON_error = deserializeJson(doc, http.getStream()); // Increased stability
 #endif
@@ -393,6 +402,7 @@ int OpenWeatherOneCall::createHistory()
             sprintf(getURL,"https://api.openweathermap.org/data/2.5/onecall?lat=%.6f&lon=%.6f&exclude=minutely,hourly,daily,alerts&units=IMPERIAL&appid=%s",USER_PARAM.OPEN_WEATHER_LATITUDE,USER_PARAM.OPEN_WEATHER_LONGITUDE,USER_PARAM.OPEN_WEATHER_DKEY);
 #ifdef DEBUG_TO_SERIAL
 			USE_SERIAL.printf("\n\r%s\n\r",getURL);
+			OpenWeatherOneCall::setExcl(-1);
 #endif
 
             http.useHTTP10(true); // To enable http.getStream()
@@ -412,6 +422,7 @@ int OpenWeatherOneCall::createHistory()
 	// Send copy of http data to serial port
 	ReadLoggingStream loggingStream(http.getStream(), USE_SERIAL);
 	DeserializationError JSON_error = deserializeJson(toc, loggingStream);
+	OpenWeatherOneCall::setExcl(-1);
 #else
 	DeserializationError JSON_error = deserializeJson(toc, http.getStream()); // Increased stability
 #endif
@@ -434,6 +445,7 @@ int OpenWeatherOneCall::createHistory()
     sprintf(getURL,"%s?lat=%.6f&lon=%.6f%s%ld&units=%s%s%s",TS_URL1,USER_PARAM.OPEN_WEATHER_LATITUDE,USER_PARAM.OPEN_WEATHER_LONGITUDE,TS_URL2,tempEPOCH,units,DS_URL3,USER_PARAM.OPEN_WEATHER_DKEY);
 #ifdef DEBUG_TO_SERIAL
 	USE_SERIAL.printf("\n\r%s\n\r",getURL);
+	OpenWeatherOneCall::setExcl(-1);
 #endif
     
     http.useHTTP10(true); // To enable http.getStream()
@@ -453,6 +465,7 @@ int OpenWeatherOneCall::createHistory()
 	// Send copy of http data to serial port
 	ReadLoggingStream loggingStream(http.getStream(), USE_SERIAL);
 	DeserializationError JSON_error = deserializeJson(doc, loggingStream);
+	OpenWeatherOneCall::setExcl(-1);
 #else
 	DeserializationError JSON_error = deserializeJson(doc, http.getStream()); // Increased stability
 #endif
@@ -637,6 +650,7 @@ int OpenWeatherOneCall::createAQ(int sizeCap)
     sprintf(getURL,"%s%.6f%s%.6f%s%s",AQ_URL1,USER_PARAM.OPEN_WEATHER_LATITUDE,AQ_URL2,USER_PARAM.OPEN_WEATHER_LONGITUDE,AQ_URL3,USER_PARAM.OPEN_WEATHER_DKEY);
 #ifdef DEBUG_TO_SERIAL
 	USE_SERIAL.printf("\n\r%s\n\r",getURL);
+	OpenWeatherOneCall::setExcl(-1);
 #endif
 
     HTTPClient http;
@@ -658,6 +672,7 @@ int OpenWeatherOneCall::createAQ(int sizeCap)
 	// Send copy of http data to serial port
 	ReadLoggingStream loggingStream(http.getStream(), USE_SERIAL);
 	DeserializationError JSON_error = deserializeJson(doc, loggingStream);
+	OpenWeatherOneCall::setExcl(-1);
 #else
 	DeserializationError JSON_error = deserializeJson(doc, http.getStream()); // Increased stability
 #endif
@@ -704,6 +719,7 @@ int OpenWeatherOneCall::createCurrent(int sizeCap)
     sprintf(getURL,"%s?lat=%.6f&lon=%.6f&lang=%s%s&units=%s%s%s",DS_URL1,USER_PARAM.OPEN_WEATHER_LATITUDE,USER_PARAM.OPEN_WEATHER_LONGITUDE,USER_PARAM.OPEN_WEATHER_LANGUAGE,DS_URL2,units,DS_URL3,USER_PARAM.OPEN_WEATHER_DKEY);
 #ifdef DEBUG_TO_SERIAL
 	USE_SERIAL.printf("\n\r%s\n\r",getURL);
+	OpenWeatherOneCall::setExcl(-1);
 #endif
 
     HTTPClient http;
@@ -726,6 +742,7 @@ int OpenWeatherOneCall::createCurrent(int sizeCap)
 	// Send copy of http data to serial port
 	ReadLoggingStream loggingStream(http.getStream(), USE_SERIAL);
 	DeserializationError JSON_error = deserializeJson(doc, loggingStream);
+	OpenWeatherOneCall::setExcl(-1);
 #else
 	DeserializationError JSON_error = deserializeJson(doc, http.getStream()); // Increased stability
 #endif
@@ -1185,12 +1202,26 @@ int OpenWeatherOneCall::setOpenWeatherKey(char* owKey)
     if((strlen(owKey) < 25) || (strlen(owKey) > 64)) return 12;
 
     strncpy(USER_PARAM.OPEN_WEATHER_DKEY,owKey,65);
+	
+#ifdef DEBUG_TO_SERIAL
+	USE_SERIAL.begin(115200);
+	USE_SERIAL.setSerial(NULL); // NO Serial output
+	USE_SERIAL.setPort(24); // avoid main TELNET port
+	USE_SERIAL.setBufferSize(45000) ;	// To store full datastring
+#endif
     return 0;
 }
 
 int OpenWeatherOneCall::setExcl(int _EXCL)
 {
-    if((_EXCL > 31) || (_EXCL < 0))
+
+	if (_EXCL == -1) { // Call with -1 to keep the TELNET service alife
+#ifdef DEBUG_TO_SERIAL
+		USE_SERIAL.handle();
+#endif
+		return 0;
+	} 
+    if((_EXCL > 31) || (_EXCL <= 0))
         {
             USER_PARAM.OPEN_WEATHER_EXCLUDES = 0;
             return 14;
