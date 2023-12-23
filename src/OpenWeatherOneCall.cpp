@@ -10,7 +10,7 @@
    REVISION HISTORY
    See User Manual
 */
-#define DEBUG_TO_SERIAL // If defined HTTP output send to serial monitor.
+// #define DEBUG_TO_SERIAL // If defined HTTP output send to serial monitor.
 
 #ifdef DEBUG_TO_SERIAL
 	#include <StreamUtils.h>  // Install: https://github.com/bblanchon/ArduinoStreamUtils
@@ -973,68 +973,43 @@ int OpenWeatherOneCall::createCurrent(int sizeCap)
         }
     else
         {
+			// Always clear because of nested allocations
+            OpenWeatherOneCall::freeAlertMem();
             //count alerts here
             int z = 0;
             while(doc["alerts"][z] and (z<10)) z++ ;
-                    
-            if(z == 0) // 
-                {
-                    // If alerts are not excluded but there are none, Free potential allocated memory
-                    OpenWeatherOneCall::freeAlertMem();
-                }else{
-                    // IF new nr of alerts is lower as current alert memory, Free Alert memory 
-                    // Avoid the CHAR pointers SenderName, Event and Summary aren't freeed resulting in memory leaks.
-                    if (z < alert[0].nrAlerts) OpenWeatherOneCall::freeAlertMem();
 
-                    // Create or extend allocated alert data 
+            if(z > 0) // 
+                {
                     MAX_NUM_ALERTS = z;
-                    alert = (struct ALERTS *)realloc(alert,MAX_NUM_ALERTS*sizeof(struct ALERTS));
+                    alert = (struct ALERTS *)realloc(alert,z*sizeof(struct ALERTS));
                     if(alert == NULL) return 23;
 
                     //Start for loop of maximum alerts here
-                    for(int x = 0; x < MAX_NUM_ALERTS; x++)
+                    for(int x = 0; x < z; x++)
                         {
-                            alert[x].nrAlerts = MAX_NUM_ALERTS ; // So we know how many alerts there are
-                            
                             JsonObject ALERTS_0 = doc["alerts"][x];
+							alert[x].senderName = (char *)malloc(sizeof(char) * strlen(ALERTS_0["sender_name"])+1);
+							if(alert[x].senderName == NULL) return 23;
+							strncpy(alert[x].senderName,ALERTS_0["sender_name"],strlen(ALERTS_0["sender_name"])+1);
 
-                            if(ALERTS_0["sender_name"])
-                                {
-                                    alert[x].senderName = (char *)realloc(alert[x].senderName,sizeof(char) * strlen(ALERTS_0["sender_name"])+1);
-                                    if(alert[x].senderName == NULL) return 23;
-                                    strncpy(alert[x].senderName,ALERTS_0["sender_name"],strlen(ALERTS_0["sender_name"])+1);
-                                }
+							alert[x].event = (char *)malloc(sizeof(char) * strlen(ALERTS_0["event"])+1);
+							if(alert[x].event == NULL) return 23;
+							strncpy(alert[x].event,ALERTS_0["event"],strlen(ALERTS_0["event"])+1);
 
-                            if(ALERTS_0["event"])
-                                {
-                                    alert[x].event = (char *)realloc(alert[x].event,sizeof(char) * strlen(ALERTS_0["event"])+1);
-                                    if(alert[x].event == NULL) return 23;
-                                    strncpy(alert[x].event,ALERTS_0["event"],strlen(ALERTS_0["event"])+1);
+							alert[x].summary = (char *)malloc(sizeof(char) * strlen(ALERTS_0["description"])+1);
+							if(alert[x].summary == NULL) return 23;
+							strncpy(alert[x].summary,ALERTS_0["description"],strlen(ALERTS_0["description"])+1);
 
-                                }
+							long tempTime = ALERTS_0["start"];
+							alert[x].alertStart = tempTime;
+							tempTime += location.timezoneOffset;
+							dateTimeConversion(tempTime,alert[x].startInfo,USER_PARAM.OPEN_WEATHER_DATEFORMAT);
 
-                            if(ALERTS_0["start"])
-                                {
-                                    long tempTime = ALERTS_0["start"];
-                                    alert[x].alertStart = tempTime;
-                                    tempTime += location.timezoneOffset;
-                                    dateTimeConversion(tempTime,alert[x].startInfo,USER_PARAM.OPEN_WEATHER_DATEFORMAT);
-                                }
-
-                            if(ALERTS_0["end"])
-                                {
-                                    long tempTime = ALERTS_0["end"];
-                                    alert[x].alertEnd = tempTime;
-                                    tempTime += location.timezoneOffset;
-                                    dateTimeConversion(tempTime,alert[x].endInfo,USER_PARAM.OPEN_WEATHER_DATEFORMAT);
-                                }
-
-                            if(ALERTS_0["description"])
-                                {
-                                    alert[x].summary = (char *)realloc(alert[x].summary,sizeof(char) * strlen(ALERTS_0["description"])+1);
-                                    if(alert[x].summary == NULL) return 23;
-                                    strncpy(alert[x].summary,ALERTS_0["description"],strlen(ALERTS_0["description"])+1);
-                                }
+							tempTime = ALERTS_0["end"];
+							alert[x].alertEnd = tempTime;
+							tempTime += location.timezoneOffset;
+							dateTimeConversion(tempTime,alert[x].endInfo,USER_PARAM.OPEN_WEATHER_DATEFORMAT);
                         } //end for
                 }
         }
@@ -1322,7 +1297,7 @@ void OpenWeatherOneCall::freeAlertMem(void)
 {
     if(alert)
         {
-            for( int x = alert[0].nrAlerts; x > 0; x--)
+            for( int x = MAX_NUM_ALERTS; x > 0; x--)
                 {    // Free all char pointers
                     if (alert[x-1].senderName)     free(alert[x-1].senderName);
                     if (alert[x-1].event)         free(alert[x-1].event);

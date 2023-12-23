@@ -89,7 +89,7 @@ public:
         char STATE[10] = {'\0'};
         char COUNTRY[10] = {'\0'};
         char timezone[50];
-        int timezoneOffset;
+        int timezoneOffset=0;
         float LATITUDE;
         float LONGITUDE;
     } location;
@@ -223,7 +223,6 @@ public:
         long alertEnd;
         char endInfo[20];
         char *summary;
-		int nrAlerts;
     } *alert = NULL;
 
 
