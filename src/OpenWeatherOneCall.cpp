@@ -10,15 +10,10 @@
    REVISION HISTORY
    See User Manual
 */
-// #define DEBUG_TO_SERIAL // If defined HTTP output send to serial monitor.
 
+// #define DEBUG_TO_SERIAL // If defined HTTP output send to serial monitor.
 #ifdef DEBUG_TO_SERIAL
 	#include <StreamUtils.h>  // Install: https://github.com/bblanchon/ArduinoStreamUtils
-
-	#include <TelnetSpy.h>          // https://github.com/yasheena/telnetspy
-	TelnetSpy USE_SERIAL;
-#else
-	#define USE_SERIAL  Serial
 #endif
 
 #include "OpenWeatherOneCall.h"
@@ -59,9 +54,6 @@ int OpenWeatherOneCall::parseWeather(void)
             return 25;
         }
 
-    unsigned int SIZE_CAPACITY = 32768;
-
-
     if((USER_PARAM.OPEN_WEATHER_LATITUDE) || (USER_PARAM.OPEN_WEATHER_LONGITUDE))
         {
             error_code = OpenWeatherOneCall::getLocationInfo();
@@ -82,12 +74,11 @@ int OpenWeatherOneCall::parseWeather(void)
                 {    // Current waether call
                     OpenWeatherOneCall::freeHistoryMem();
                     // TEST AIR QUALITY CALL *********************
-                    error_code = OpenWeatherOneCall::createAQ(512);
+                    error_code = OpenWeatherOneCall::createAQ();
                     if(error_code == 0) 
 						{
 							// Bitwise function that sets the bits for the EXCLUDES argument
-							SIZE_CAPACITY = OpenWeatherOneCall::setExcludes(USER_PARAM.OPEN_WEATHER_EXCLUDES);
-							error_code = OpenWeatherOneCall::createCurrent(SIZE_CAPACITY);
+							error_code = OpenWeatherOneCall::createCurrent();
 						}
                 }
         }
@@ -182,13 +173,11 @@ int OpenWeatherOneCall::parseCityCoordinates(char* CTY_URL)
             return ( (httpCode == 404) ? 4 : 5);
         }
 
-    const size_t capacity = JSON_ARRAY_SIZE(1) + JSON_OBJECT_SIZE(1) + 2*JSON_OBJECT_SIZE(2) + JSON_OBJECT_SIZE(4) + JSON_OBJECT_SIZE(5) + JSON_OBJECT_SIZE(6) + JSON_OBJECT_SIZE(13) + 270;
-    DynamicJsonDocument doc(capacity);
+    JsonDocument doc;
 #ifdef DEBUG_TO_SERIAL
 	// Send copy of http data to serial port
-	ReadLoggingStream loggingStream(http.getStream(), USE_SERIAL);
+	ReadLoggingStream loggingStream(http.getStream(), Serial);
 	DeserializationError JSON_error = deserializeJson(doc, loggingStream);
-	OpenWeatherOneCall::setExcl(-1);
 #else
 	DeserializationError JSON_error = deserializeJson(doc, http.getStream()); // Increased stability
 #endif
@@ -196,7 +185,7 @@ int OpenWeatherOneCall::parseCityCoordinates(char* CTY_URL)
     http.end();
 	if (JSON_error) 
 		{
-			USE_SERIAL.printf("deserializeJson() failed: %s\n\r",JSON_error.c_str());
+			Serial.printf("deserializeJson() failed: %s\n\r",JSON_error.c_str());
 			return 25;
 		}
 		
@@ -261,15 +250,12 @@ int OpenWeatherOneCall::getIPAPILocation(char* URL)
             return ( (ipapi_httpCode == 404) ? 10 : 11);
         }
 
-
-    const size_t capacity = JSON_OBJECT_SIZE(26) + 490;
-    DynamicJsonDocument doc(capacity);
+    JsonDocument doc;
 
 #ifdef DEBUG_TO_SERIAL
 	// Send copy of http data to serial port
-	ReadLoggingStream loggingStream(http.getStream(), USE_SERIAL);
+	ReadLoggingStream loggingStream(http.getStream(), Serial);
 	DeserializationError JSON_error = deserializeJson(doc, loggingStream);
-	OpenWeatherOneCall::setExcl(-1);
 #else
 	DeserializationError JSON_error = deserializeJson(doc, http.getStream()); // Increased stability
 #endif
@@ -277,7 +263,7 @@ int OpenWeatherOneCall::getIPAPILocation(char* URL)
     http.end();
 	if (JSON_error) 
 		{
-			USE_SERIAL.printf("deserializeJson() failed: %s\n\r",JSON_error.c_str());
+			Serial.printf("deserializeJson() failed: %s\n\r",JSON_error.c_str());
 			return 25;
 		}
 
@@ -316,8 +302,7 @@ static bool bDone = false ;
 
     sprintf(locationURL,"https://api.bigdatacloud.net/data/reverse-geocode-client/?latitude=%f&longitude=%f\0",USER_PARAM.OPEN_WEATHER_LATITUDE,USER_PARAM.OPEN_WEATHER_LONGITUDE);
 #ifdef DEBUG_TO_SERIAL
-	USE_SERIAL.printf("\n\r%s\n\r",locationURL);
-	OpenWeatherOneCall::setExcl(-1);
+	Serial.printf("\n\r%s\n\r",locationURL);
 #endif
     HTTPClient http;
     http.useHTTP10(true); // To enable http.getStream()
@@ -332,12 +317,11 @@ static bool bDone = false ;
 			else return 19;
         }
 
-    DynamicJsonDocument doc(4096);
+    JsonDocument doc;
 #ifdef DEBUG_TO_SERIAL
 	// Send copy of http data to serial port
-	ReadLoggingStream loggingStream(http.getStream(), USE_SERIAL);
+	ReadLoggingStream loggingStream(http.getStream(), Serial);
 	DeserializationError JSON_error = deserializeJson(doc, loggingStream);
-	OpenWeatherOneCall::setExcl(-1);
 #else
 	DeserializationError JSON_error = deserializeJson(doc, http.getStream()); // Increased stability
 #endif
@@ -345,7 +329,7 @@ static bool bDone = false ;
     http.end();
 	if (JSON_error) 
 		{
-			USE_SERIAL.printf("deserializeJson() failed: %s\n\r",JSON_error.c_str());
+			Serial.printf("deserializeJson() failed: %s\n\r",JSON_error.c_str());
 			return 25;
 		}
 
@@ -401,8 +385,7 @@ int OpenWeatherOneCall::createHistory()
             //Gets Timestamp for EPOCH calculation below
             sprintf(getURL,"https://api.openweathermap.org/data/2.5/onecall?lat=%.6f&lon=%.6f&exclude=minutely,hourly,daily,alerts&units=IMPERIAL&appid=%s",USER_PARAM.OPEN_WEATHER_LATITUDE,USER_PARAM.OPEN_WEATHER_LONGITUDE,USER_PARAM.OPEN_WEATHER_DKEY);
 #ifdef DEBUG_TO_SERIAL
-			USE_SERIAL.printf("\n\r%s\n\r",getURL);
-			OpenWeatherOneCall::setExcl(-1);
+			Serial.printf("\n\r%s\n\r",getURL);
 #endif
 
             http.useHTTP10(true); // To enable http.getStream()
@@ -417,12 +400,11 @@ int OpenWeatherOneCall::createHistory()
 					return 21;
                 }
 
-            DynamicJsonDocument toc(1024);
+            JsonDocument toc;
 #ifdef DEBUG_TO_SERIAL
 	// Send copy of http data to serial port
-	ReadLoggingStream loggingStream(http.getStream(), USE_SERIAL);
+	ReadLoggingStream loggingStream(http.getStream(), Serial);
 	DeserializationError JSON_error = deserializeJson(toc, loggingStream);
-	OpenWeatherOneCall::setExcl(-1);
 #else
 	DeserializationError JSON_error = deserializeJson(toc, http.getStream()); // Increased stability
 #endif
@@ -430,7 +412,7 @@ int OpenWeatherOneCall::createHistory()
     http.end();
 	if (JSON_error) 
 		{
-			USE_SERIAL.printf("deserializeJson() failed: %s\n\r",JSON_error.c_str());
+			Serial.printf("deserializeJson() failed: %s\n\r",JSON_error.c_str());
 			return 25;
 		}
 
@@ -444,8 +426,7 @@ int OpenWeatherOneCall::createHistory()
     //Timemachine request to OWM
     sprintf(getURL,"%s?lat=%.6f&lon=%.6f%s%ld&units=%s%s%s",TS_URL1,USER_PARAM.OPEN_WEATHER_LATITUDE,USER_PARAM.OPEN_WEATHER_LONGITUDE,TS_URL2,tempEPOCH,units,DS_URL3,USER_PARAM.OPEN_WEATHER_DKEY);
 #ifdef DEBUG_TO_SERIAL
-	USE_SERIAL.printf("\n\r%s\n\r",getURL);
-	OpenWeatherOneCall::setExcl(-1);
+	Serial.printf("\n\r%s\n\r",getURL);
 #endif
     
     http.useHTTP10(true); // To enable http.getStream()
@@ -460,12 +441,11 @@ int OpenWeatherOneCall::createHistory()
 			return 21;
 		}
 
-    DynamicJsonDocument doc(16384);
+    JsonDocument doc;
 #ifdef DEBUG_TO_SERIAL
 	// Send copy of http data to serial port
-	ReadLoggingStream loggingStream(http.getStream(), USE_SERIAL);
+	ReadLoggingStream loggingStream(http.getStream(), Serial);
 	DeserializationError JSON_error = deserializeJson(doc, loggingStream);
-	OpenWeatherOneCall::setExcl(-1);
 #else
 	DeserializationError JSON_error = deserializeJson(doc, http.getStream()); // Increased stability
 #endif
@@ -473,7 +453,7 @@ int OpenWeatherOneCall::createHistory()
     http.end();
 	if (JSON_error) 
 		{
-			USE_SERIAL.printf("deserializeJson() failed: %s\n\r",JSON_error.c_str());
+			Serial.printf("deserializeJson() failed: %s\n\r",JSON_error.c_str());
 			return 25;
 		}
 
@@ -643,14 +623,13 @@ int OpenWeatherOneCall::createHistory()
     return 0;
 }
 
-int OpenWeatherOneCall::createAQ(int sizeCap)
+int OpenWeatherOneCall::createAQ()
 {
     char getURL[200];
 
     sprintf(getURL,"%s%.6f%s%.6f%s%s",AQ_URL1,USER_PARAM.OPEN_WEATHER_LATITUDE,AQ_URL2,USER_PARAM.OPEN_WEATHER_LONGITUDE,AQ_URL3,USER_PARAM.OPEN_WEATHER_DKEY);
 #ifdef DEBUG_TO_SERIAL
-	USE_SERIAL.printf("\n\r%s\n\r",getURL);
-	OpenWeatherOneCall::setExcl(-1);
+	Serial.printf("\n\r%s\n\r",getURL);
 #endif
 
     HTTPClient http;
@@ -666,13 +645,11 @@ int OpenWeatherOneCall::createAQ(int sizeCap)
 			return 21;
 		}
 
-    const size_t capacity = sizeCap;
-    DynamicJsonDocument doc(capacity);
+    JsonDocument doc;
 #ifdef DEBUG_TO_SERIAL
 	// Send copy of http data to serial port
-	ReadLoggingStream loggingStream(http.getStream(), USE_SERIAL);
+	ReadLoggingStream loggingStream(http.getStream(), Serial);
 	DeserializationError JSON_error = deserializeJson(doc, loggingStream);
-	OpenWeatherOneCall::setExcl(-1);
 #else
 	DeserializationError JSON_error = deserializeJson(doc, http.getStream()); // Increased stability
 #endif
@@ -680,7 +657,7 @@ int OpenWeatherOneCall::createAQ(int sizeCap)
     http.end();
 	if (JSON_error) 
 		{
-			USE_SERIAL.printf("deserializeJson() failed: %s\n\r",JSON_error.c_str());
+			Serial.printf("deserializeJson() failed: %s\n\r",JSON_error.c_str());
 			return 25;
 		}
     doc.shrinkToFit();
@@ -713,13 +690,12 @@ int OpenWeatherOneCall::createAQ(int sizeCap)
     return 0;
 }
 
-int OpenWeatherOneCall::createCurrent(int sizeCap)
+int OpenWeatherOneCall::createCurrent()
 {
     char getURL[200];
     sprintf(getURL,"%s?lat=%.6f&lon=%.6f&lang=%s%s&units=%s%s%s",DS_URL1,USER_PARAM.OPEN_WEATHER_LATITUDE,USER_PARAM.OPEN_WEATHER_LONGITUDE,USER_PARAM.OPEN_WEATHER_LANGUAGE,DS_URL2,units,DS_URL3,USER_PARAM.OPEN_WEATHER_DKEY);
 #ifdef DEBUG_TO_SERIAL
-	USE_SERIAL.printf("\n\r%s\n\r",getURL);
-	OpenWeatherOneCall::setExcl(-1);
+	Serial.printf("\n\r%s\n\r",getURL);
 #endif
 
     HTTPClient http;
@@ -735,14 +711,12 @@ int OpenWeatherOneCall::createCurrent(int sizeCap)
 			return 21;
 		}
 
-    const size_t capacity = sizeCap;
-    DynamicJsonDocument doc(capacity);
+    JsonDocument doc;
 
 #ifdef DEBUG_TO_SERIAL
 	// Send copy of http data to serial port
-	ReadLoggingStream loggingStream(http.getStream(), USE_SERIAL);
+	ReadLoggingStream loggingStream(http.getStream(), Serial);
 	DeserializationError JSON_error = deserializeJson(doc, loggingStream);
-	OpenWeatherOneCall::setExcl(-1);
 #else
 	DeserializationError JSON_error = deserializeJson(doc, http.getStream()); // Increased stability
 #endif
@@ -750,7 +724,7 @@ int OpenWeatherOneCall::createCurrent(int sizeCap)
     http.end();
 	if (JSON_error) 
 		{
-			USE_SERIAL.printf("deserializeJson() failed: %s\n\r",JSON_error.c_str());
+			Serial.printf("deserializeJson() failed: %s\n\r",JSON_error.c_str());
 			return 25;
 		}
     doc.shrinkToFit();
@@ -1118,84 +1092,15 @@ int OpenWeatherOneCall::createCurrent(int sizeCap)
     return 0;
 }
 
-int OpenWeatherOneCall::setExcludes(int EXCL)
-{
-    unsigned int excludeMemSize = 32768;
-    // Allocate MEM requirements for parser ****************************
-    unsigned int EXCL_SIZES[] = {1010,3084,15934,4351,607}; //Alerts, Minutely, Hourly, Daily, Currently
-    // Name the exclude options *********************
-    char* EXCL_NAMES[] = {(char *)"current", (char *)"daily", (char *)"hourly", (char *)"minutely", (char *)"alerts"};
-
-    exclude.all_excludes = EXCL; //<- Sets the individual bits to 1 for excludes
-    strcpy(DS_URL2,"&exclude=");
-
-    int SIZE_X = (sizeof(EXCL_NAMES) / sizeof(EXCL_NAMES[0])) - 1;
-
-    // Required to insert comma properly *****************************
-    int comma_pos = exclude.all_excludes;
-    int comma_sub = 16;
-
-    // Add exclude names to URL and insert a comma *******************
-   for (int x = SIZE_X; x >= 0; x--)
-        {
-            if (exclude.all_excludes >> x & 1)
-                {
-                    strcat(DS_URL2,EXCL_NAMES[x]);
-
-                    if ((x == 4) && (comma_pos > 16))
-                        {
-                            strcat(DS_URL2,",");
-                            comma_pos -= comma_sub;
-                        }
-                    if ((x == 3) && ((comma_pos > 8)&&(comma_pos < 16)))
-                        {
-                            strcat(DS_URL2,",");
-                            comma_pos -= comma_sub;
-                        }
-
-                    if ((x == 2) && ((comma_pos > 4)&&(comma_pos < 8)))
-                        {
-                            strcat(DS_URL2,",");
-                            comma_pos -= comma_sub;
-                        }
-
-                    if ((x == 1) && ((comma_pos > 2)&&(comma_pos < 4)))
-                        {
-                            strcat(DS_URL2,",");
-                            comma_pos -= comma_sub;
-                        }
-
-                    excludeMemSize -= EXCL_SIZES[x];
-                }
-            comma_sub = comma_sub/2;
-        }
-    return excludeMemSize;
-}
-
 int OpenWeatherOneCall::setOpenWeatherKey(char* owKey)
 {
     if((strlen(owKey) < 25) || (strlen(owKey) > 64)) return 12;
-
     strncpy(USER_PARAM.OPEN_WEATHER_DKEY,owKey,65);
-	
-#ifdef DEBUG_TO_SERIAL
-	USE_SERIAL.begin(115200);
-	USE_SERIAL.setSerial(NULL); // NO Serial output
-	USE_SERIAL.setPort(24); // avoid main TELNET port
-	USE_SERIAL.setBufferSize(45000) ;	// To store full datastring
-#endif
     return 0;
 }
 
 int OpenWeatherOneCall::setExcl(int _EXCL)
 {
-
-	if (_EXCL == -1) { // Call with -1 to keep the TELNET service alife
-#ifdef DEBUG_TO_SERIAL
-		USE_SERIAL.handle();
-#endif
-		return 0;
-	} 
     if((_EXCL > 31) || (_EXCL <= 0))
         {
             USER_PARAM.OPEN_WEATHER_EXCLUDES = 0;

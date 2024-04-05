@@ -14,16 +14,12 @@
 #ifndef _OPEN_WEATHER_ONECALL_H_FILE
 #define _OPEN_WEATHER_ONECALL_H_FILE
 
-
-
 #include <HTTPClient.h>         // Required but installed in the ESP32
 #include <ArduinoJson.h>        // Version 6 Required
 #include <time.h>
 #include <Arduino.h>
 #include <string.h>
 #include "errMsgs.h"
-
-
 
 // Excludes
 #define EXCL_C 1  //Exclude Current
@@ -43,12 +39,8 @@
 #define MDY12H 3
 #define DMY12H 4
 
-
 //struct initializer
 #define NEW_API {"",0.0f,0.0f,true,0,0,0}
-
-
-
 
 class OpenWeatherOneCall
 {
@@ -268,10 +260,9 @@ private:
     int getIPLocation();
     int getIPAPILocation(char* URL);
     int createHistory(void);
-    int createCurrent(int);
-    int setExcludes(int EXCL);
+    int createCurrent();
     int getLocationInfo();
-    int createAQ(int);
+    int createAQ();
 
     void freeCurrentMem(void);
     void freeForecastMem(void);
