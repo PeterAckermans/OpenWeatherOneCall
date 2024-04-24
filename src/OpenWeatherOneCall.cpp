@@ -11,7 +11,7 @@
    See User Manual
 */
 
-// #define DEBUG_TO_SERIAL // If defined HTTP output send to serial monitor.
+#define DEBUG_TO_SERIAL // If defined HTTP output send to serial monitor.
 #ifdef DEBUG_TO_SERIAL
 	#include <StreamUtils.h>  // Install: https://github.com/bblanchon/ArduinoStreamUtils
 #endif
@@ -25,7 +25,7 @@ OpenWeatherOneCall::OpenWeatherOneCall()
 }
 
 // For Normal Weather calls *************
-#define DS_URL1 "https://api.openweathermap.org/data/2.5/onecall"
+#define DS_URL1 "https://api.openweathermap.org/data/3.0/onecall"
 char DS_URL2[100];
 #define DS_URL3 "&appid="
 
@@ -35,7 +35,7 @@ char DS_URL2[100];
 #define AQ_URL3 "&appid="
 
 // For Historical Weather Calls **********
-#define TS_URL1 "https://api.openweathermap.org/data/2.5/onecall/timemachine"
+#define TS_URL1 "https://api.openweathermap.org/data/3.0/onecall/timemachine"
 #define TS_URL2 "&dt="
 
 // For CITY Id calls
@@ -383,7 +383,7 @@ int OpenWeatherOneCall::createHistory()
     else 
         {
             //Gets Timestamp for EPOCH calculation below
-            sprintf(getURL,"https://api.openweathermap.org/data/2.5/onecall?lat=%.6f&lon=%.6f&exclude=minutely,hourly,daily,alerts&units=IMPERIAL&appid=%s",USER_PARAM.OPEN_WEATHER_LATITUDE,USER_PARAM.OPEN_WEATHER_LONGITUDE,USER_PARAM.OPEN_WEATHER_DKEY);
+            sprintf(getURL,"https://api.openweathermap.org/data/3.0/onecall?lat=%.6f&lon=%.6f&exclude=minutely,hourly,daily,alerts&units=IMPERIAL&appid=%s",USER_PARAM.OPEN_WEATHER_LATITUDE,USER_PARAM.OPEN_WEATHER_LONGITUDE,USER_PARAM.OPEN_WEATHER_DKEY);
 #ifdef DEBUG_TO_SERIAL
 			Serial.printf("\n\r%s\n\r",getURL);
 #endif
@@ -467,7 +467,8 @@ int OpenWeatherOneCall::createHistory()
         }
 
     //Current in historical is the time of the request on that day
-    JsonObject current = doc["current"];
+    // JsonObject current = doc["current"];
+    JsonObject current = doc["data"];
     history[0].dayTime = current["dt"]; // 1607292481
 
     if(current["dt"])
@@ -526,100 +527,100 @@ int OpenWeatherOneCall::createHistory()
                 }
         }else history[0].snowVolume = 0;
 
-    JsonObject current_weather_0 = current["weather"][0];
-    history[0].id = current_weather_0["id"]; // 800
+    // JsonObject current_weather_0 = current["weather"][0];
+    // history[0].id = current_weather_0["id"]; // 800
 
-    history[0].main = (char *)realloc(history[0].main,sizeof(char) * strlen(current_weather_0["main"])+1);
-    if(history[0].main == NULL) return 23;
-    strncpy(history[0].main,current_weather_0["main"],strlen(current_weather_0["main"])+1);
+    // history[0].main = (char *)realloc(history[0].main,sizeof(char) * strlen(current_weather_0["main"])+1);
+    // if(history[0].main == NULL) return 23;
+    // strncpy(history[0].main,current_weather_0["main"],strlen(current_weather_0["main"])+1);
 
-    history[0].summary = (char *)realloc(history[0].summary,sizeof(char) * strlen(current_weather_0["description"])+1);
-    if(history[0].summary == NULL) return 23;
-    strncpy(history[0].summary,current_weather_0["description"],strlen(current_weather_0["description"])+1);
+    // history[0].summary = (char *)realloc(history[0].summary,sizeof(char) * strlen(current_weather_0["description"])+1);
+    // if(history[0].summary == NULL) return 23;
+    // strncpy(history[0].summary,current_weather_0["description"],strlen(current_weather_0["description"])+1);
 
-    strncpy(history[0].icon,current_weather_0["icon"],strlen(current_weather_0["icon"])+1);
+    // strncpy(history[0].icon,current_weather_0["icon"],strlen(current_weather_0["icon"])+1);
 
-    dateTimeConversion(history[0].dayTime,history[0].weekDayName,9);
-
-
-    //Hourly report for the day requested begins at 00:00GMT
-    JsonArray hourly = doc["hourly"];
-
-    for(int x = 1; x < 24; x++)
-        {
-            JsonObject hourly_0 = hourly[x-1];
-            history[x].dayTime = hourly_0["dt"]; // 1607212800
-
-            if(hourly_0["dt"])
-                {
-                    long tempTime = hourly_0["dt"];
-                    tempTime += location.timezoneOffset;
-                    dateTimeConversion(tempTime,history[x].readableDateTime,USER_PARAM.OPEN_WEATHER_DATEFORMAT);
-                }
-
-            history[x].sunrise = current["sunrise"] | 1607256309; // 1607256309
-
-            if(current["sunrise"])
-                {
-                    long tempTime = current["sunrise"];
-                    tempTime += location.timezoneOffset;
-                    dateTimeConversion(tempTime,history[x].readableSunrise,USER_PARAM.OPEN_WEATHER_DATEFORMAT+4);
-                }
-
-            history[x].sunset = current["sunset"] | 1607290280; // 1607290280
-
-            if(current["sunset"])
-                {
-                    long tempTime = current["sunset"];
-                    tempTime += location.timezoneOffset;
-                    dateTimeConversion(tempTime,history[x].readableSunset,USER_PARAM.OPEN_WEATHER_DATEFORMAT+4);
-                }
-
-            history[x].temperature = hourly_0["temp"]; // 40.21
-            history[x].apparentTemperature = hourly_0["feels_like"]; // 29.39
-            history[x].pressure = hourly_0["pressure"]; // 1007
-            history[x].humidity = hourly_0["humidity"]; // 56
-            history[x].dewPoint = hourly_0["dew_point"]; // 26.51
-            history[x].cloudCover = hourly_0["clouds"]; // 1
-            history[x].visibility = hourly_0["visibility"]; // 16093
-            history[x].windSpeed = hourly_0["wind_speed"]; // 11.41
-            history[x].windBearing = hourly_0["wind_deg"]; // 290
-
-            // New rain and snow =======================
-            if(hourly_0["rain"]["1h"])
-                {
-                    history[x].rainVolume = hourly_0["rain"]["1h"]; // Checked needs 1h
-					if(USER_PARAM.OPEN_WEATHER_UNITS == 2)
-                        {
-                            history[x].rainVolume /= 25.4; // mm to inch
-                        }
-                }else history[x].rainVolume = 0;
+    // dateTimeConversion(history[0].dayTime,history[0].weekDayName,9);
 
 
-            if(hourly_0["snow"])
-                {
-                    history[x].snowVolume = hourly_0["snow"]["1h"]; // 95
-					if(USER_PARAM.OPEN_WEATHER_UNITS == 2)
-                        {
-                            history[x].snowVolume /= 25.4; // 95
-                        }
-                }else history[x].snowVolume = 0;
+    // //Hourly report for the day requested begins at 00:00GMT
+    // JsonArray hourly = doc["hourly"];
 
-            JsonObject hourly_0_weather_0 = hourly_0["weather"][0];
-            history[x].id = hourly_0_weather_0["id"]; // 800
+    // for(int x = 1; x < 24; x++)
+        // {
+            // JsonObject hourly_0 = hourly[x-1];
+            // history[x].dayTime = hourly_0["dt"]; // 1607212800
 
-            history[x].main = (char *)realloc(history[x].main,sizeof(char) * strlen(hourly_0_weather_0["main"])+1);
-            if(history[x].main == NULL) return 23;
-            strncpy(history[x].main,hourly_0_weather_0["main"],strlen(hourly_0_weather_0["main"])+1);
+            // if(hourly_0["dt"])
+                // {
+                    // long tempTime = hourly_0["dt"];
+                    // tempTime += location.timezoneOffset;
+                    // dateTimeConversion(tempTime,history[x].readableDateTime,USER_PARAM.OPEN_WEATHER_DATEFORMAT);
+                // }
 
-            history[x].summary = (char *)realloc(history[x].summary,sizeof(char) * strlen(hourly_0_weather_0["description"])+1);
-            if(history[x].summary == NULL) return 23;
-            strncpy(history[x].summary,hourly_0_weather_0["description"],strlen(hourly_0_weather_0["description"])+1);
+            // history[x].sunrise = current["sunrise"] | 1607256309; // 1607256309
 
-            strncpy(history[x].icon,hourly_0_weather_0["icon"],strlen(hourly_0_weather_0["icon"])+1);
+            // if(current["sunrise"])
+                // {
+                    // long tempTime = current["sunrise"];
+                    // tempTime += location.timezoneOffset;
+                    // dateTimeConversion(tempTime,history[x].readableSunrise,USER_PARAM.OPEN_WEATHER_DATEFORMAT+4);
+                // }
 
-            dateTimeConversion(history[0].dayTime,history[x].weekDayName,9);
-        }
+            // history[x].sunset = current["sunset"] | 1607290280; // 1607290280
+
+            // if(current["sunset"])
+                // {
+                    // long tempTime = current["sunset"];
+                    // tempTime += location.timezoneOffset;
+                    // dateTimeConversion(tempTime,history[x].readableSunset,USER_PARAM.OPEN_WEATHER_DATEFORMAT+4);
+                // }
+
+            // history[x].temperature = hourly_0["temp"]; // 40.21
+            // history[x].apparentTemperature = hourly_0["feels_like"]; // 29.39
+            // history[x].pressure = hourly_0["pressure"]; // 1007
+            // history[x].humidity = hourly_0["humidity"]; // 56
+            // history[x].dewPoint = hourly_0["dew_point"]; // 26.51
+            // history[x].cloudCover = hourly_0["clouds"]; // 1
+            // history[x].visibility = hourly_0["visibility"]; // 16093
+            // history[x].windSpeed = hourly_0["wind_speed"]; // 11.41
+            // history[x].windBearing = hourly_0["wind_deg"]; // 290
+
+            // // New rain and snow =======================
+            // if(hourly_0["rain"]["1h"])
+                // {
+                    // history[x].rainVolume = hourly_0["rain"]["1h"]; // Checked needs 1h
+					// if(USER_PARAM.OPEN_WEATHER_UNITS == 2)
+                        // {
+                            // history[x].rainVolume /= 25.4; // mm to inch
+                        // }
+                // }else history[x].rainVolume = 0;
+
+
+            // if(hourly_0["snow"])
+                // {
+                    // history[x].snowVolume = hourly_0["snow"]["1h"]; // 95
+					// if(USER_PARAM.OPEN_WEATHER_UNITS == 2)
+                        // {
+                            // history[x].snowVolume /= 25.4; // 95
+                        // }
+                // }else history[x].snowVolume = 0;
+
+            // JsonObject hourly_0_weather_0 = hourly_0["weather"][0];
+            // history[x].id = hourly_0_weather_0["id"]; // 800
+
+            // history[x].main = (char *)realloc(history[x].main,sizeof(char) * strlen(hourly_0_weather_0["main"])+1);
+            // if(history[x].main == NULL) return 23;
+            // strncpy(history[x].main,hourly_0_weather_0["main"],strlen(hourly_0_weather_0["main"])+1);
+
+            // history[x].summary = (char *)realloc(history[x].summary,sizeof(char) * strlen(hourly_0_weather_0["description"])+1);
+            // if(history[x].summary == NULL) return 23;
+            // strncpy(history[x].summary,hourly_0_weather_0["description"],strlen(hourly_0_weather_0["description"])+1);
+
+            // strncpy(history[x].icon,hourly_0_weather_0["icon"],strlen(hourly_0_weather_0["icon"])+1);
+
+            // dateTimeConversion(history[0].dayTime,history[x].weekDayName,9);
+        // }
     return 0;
 }
 
