@@ -17,6 +17,7 @@ void dateTimeConversion(long _epoch, char *_buffer, int _format)
     5/6 TIME ONLY 24H
     7/8 TIME ONLY 12H
     9 DAY SHORTNAME
+	10 Y-M-D Day history call
     */
 
 
@@ -55,10 +56,13 @@ void dateTimeConversion(long _epoch, char *_buffer, int _format)
             // DAY SHORTNAME
             strftime(_buffer,20,"%a",ptm);
             break;
+		case 10:
+            // Y-M-D
+            strftime(_buffer,20,"%Y-%m-%d",ptm);
+            break;
         default:
             // M/D/Y 24H
             strftime(_buffer,20,"%m/%d/%Y %R",ptm);
-
         }
 
 }

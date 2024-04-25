@@ -34,9 +34,13 @@ char DS_URL2[100];
 #define AQ_URL2 "&lon="
 #define AQ_URL3 "&appid="
 
-// For Historical Weather Calls **********
+// For Historical Weather Calls time details **********
 #define TS_URL1 "https://api.openweathermap.org/data/3.0/onecall/timemachine"
 #define TS_URL2 "&dt="
+
+// For Historical Weather Daily Aggregation Calls **********
+#define DA_URL1 "https://api.openweathermap.org/data/3.0/onecall/day_summary"
+#define DA_URL2 "&date="
 
 // For CITY Id calls
 #define CI_URL1 "api.openweathermap.org/data/2.5/weather?id="
@@ -73,11 +77,9 @@ int OpenWeatherOneCall::parseWeather(void)
             else
                 {    // Current waether call
                     OpenWeatherOneCall::freeHistoryMem();
-                    // TEST AIR QUALITY CALL *********************
                     error_code = OpenWeatherOneCall::createAQ();
                     if(error_code == 0) 
 						{
-							// Bitwise function that sets the bits for the EXCLUDES argument
 							error_code = OpenWeatherOneCall::createCurrent();
 						}
                 }
@@ -283,7 +285,7 @@ void OpenWeatherOneCall::initAPI(void)
     memset(USER_PARAM.OPEN_WEATHER_DKEY,0,1);
     USER_PARAM.OPEN_WEATHER_LATITUDE = 0.0;
     USER_PARAM.OPEN_WEATHER_LONGITUDE = 0.0;
-    USER_PARAM.OPEN_WEATHER_UNITS = 2;
+    USER_PARAM.OPEN_WEATHER_UNITS = IMPERIAL;
     USER_PARAM.OPEN_WEATHER_EXCLUDES = 0;
     USER_PARAM.OPEN_WEATHER_HISTORY = 0;
 }
@@ -402,23 +404,23 @@ int OpenWeatherOneCall::createHistory()
 
             JsonDocument toc;
 #ifdef DEBUG_TO_SERIAL
-	// Send copy of http data to serial port
-	ReadLoggingStream loggingStream(http.getStream(), Serial);
-	DeserializationError JSON_error = deserializeJson(toc, loggingStream);
+			// Send copy of http data to serial port
+			ReadLoggingStream loggingStream(http.getStream(), Serial);
+			DeserializationError JSON_error = deserializeJson(toc, loggingStream);
 #else
-	DeserializationError JSON_error = deserializeJson(toc, http.getStream()); // Increased stability
+			DeserializationError JSON_error = deserializeJson(toc, http.getStream()); // Increased stability
 #endif
 
-    http.end();
-	if (JSON_error) 
-		{
-			Serial.printf("deserializeJson() failed: %s\n\r",JSON_error.c_str());
-			return 25;
-		}
+			http.end();
+			if (JSON_error) 
+				{
+					Serial.printf("deserializeJson() failed: %s\n\r",JSON_error.c_str());
+					return 25;
+				}
 
             JsonObject toc_current = toc["current"];
             tempEPOCH = toc_current["dt"]; // 1608323864
-        }
+        } // End get tempEPOCH
     
     // Subtract the history number of days in seconds
     tempEPOCH = tempEPOCH - (86400 * USER_PARAM.OPEN_WEATHER_HISTORY);
@@ -462,13 +464,12 @@ int OpenWeatherOneCall::createHistory()
 
     if(!history)
         {
-            history = (struct HISTORICAL *)calloc(25,sizeof(struct HISTORICAL));
+            history = (struct HISTORICAL *)calloc(1,sizeof(struct HISTORICAL));
             if(history == NULL) return 23;
         }
 
     //Current in historical is the time of the request on that day
-    // JsonObject current = doc["current"];
-    JsonObject current = doc["data"];
+    JsonObject current = doc["data"][0];
     history[0].dayTime = current["dt"]; // 1607292481
 
     if(current["dt"])
@@ -512,115 +513,92 @@ int OpenWeatherOneCall::createHistory()
     if(current["rain"]["1h"])
         {
 			history[0].rainVolume = current["rain"]["1h"]; // To be checked?
-            if(USER_PARAM.OPEN_WEATHER_UNITS == 2)
+            if(USER_PARAM.OPEN_WEATHER_UNITS == IMPERIAL)
                 {
                     history[0].rainVolume /= 25.4; // inch
                 }
-        }else history[0].rainVolume = 0;
+        } else history[0].rainVolume = 0;
 
     if(current["snow"])
         {
             history[0].snowVolume = current["snow"]["1h"]; // 95
-			if(USER_PARAM.OPEN_WEATHER_UNITS == 2)
+			if(USER_PARAM.OPEN_WEATHER_UNITS == IMPERIAL)
                 {
                     history[0].snowVolume /= 25.4; // 95
                 }
-        }else history[0].snowVolume = 0;
+        } else history[0].snowVolume = 0;
 
-    // JsonObject current_weather_0 = current["weather"][0];
-    // history[0].id = current_weather_0["id"]; // 800
+    JsonObject cur_weather = current["weather"][0];
+	if (cur_weather) 
+	{
+		Serial.printf("\n\r***** Weather\n\r");
+	
+		history[0].id = cur_weather["id"]; // 800
+		history[0].main = (char *)realloc(history[0].main,sizeof(char) * strlen(cur_weather["main"])+1);
+		if(history[0].main == NULL) return 23;
+		strncpy(history[0].main,cur_weather["main"],strlen(cur_weather["main"])+1);
 
-    // history[0].main = (char *)realloc(history[0].main,sizeof(char) * strlen(current_weather_0["main"])+1);
-    // if(history[0].main == NULL) return 23;
-    // strncpy(history[0].main,current_weather_0["main"],strlen(current_weather_0["main"])+1);
+		history[0].summary = (char *)realloc(history[0].summary,sizeof(char) * strlen(cur_weather["description"])+1);
+		if(history[0].summary == NULL) return 23;
+		strncpy(history[0].summary,cur_weather["description"],strlen(cur_weather["description"])+1);
 
-    // history[0].summary = (char *)realloc(history[0].summary,sizeof(char) * strlen(current_weather_0["description"])+1);
-    // if(history[0].summary == NULL) return 23;
-    // strncpy(history[0].summary,current_weather_0["description"],strlen(current_weather_0["description"])+1);
+		strncpy(history[0].icon,cur_weather["icon"],strlen(cur_weather["icon"])+1);
+		dateTimeConversion(history[0].dayTime,history[0].weekDayName,9);
+	}
 
-    // strncpy(history[0].icon,current_weather_0["icon"],strlen(current_weather_0["icon"])+1);
+    //Daily Aggregation request to OWM
+    char HS_Date[12];
+	dateTimeConversion(tempEPOCH, HS_Date, 10);
+    sprintf(getURL,"%s?lat=%.6f&lon=%.6f%s%s&units=%s%s%s",DA_URL1,USER_PARAM.OPEN_WEATHER_LATITUDE,USER_PARAM.OPEN_WEATHER_LONGITUDE,DA_URL2,HS_Date,units,DS_URL3,USER_PARAM.OPEN_WEATHER_DKEY);
+#ifdef DEBUG_TO_SERIAL
+	Serial.printf("\n\r%s\n\r",getURL);
+#endif
+    
+    http.useHTTP10(true); // To enable http.getStream()
+    http.begin(getURL);
+    httpCode = http.GET();
 
-    // dateTimeConversion(history[0].dayTime,history[0].weekDayName,9);
+	if (httpCode > 399)
+		{
+			http.end();
+			if (httpCode == 401) return 22;
+			if (httpCode == 429) return 25;
+			return 21;
+		}
 
+    JsonDocument daytotal;
+#ifdef DEBUG_TO_SERIAL
+	// Send copy of http data to serial port
+	ReadLoggingStream loggingStream2(http.getStream(), Serial);
+	JSON_error = deserializeJson(daytotal, loggingStream2);
+#else
+	JSON_error = deserializeJson(daytotal, http.getStream()); // Increased stability
+#endif
 
-    // //Hourly report for the day requested begins at 00:00GMT
-    // JsonArray hourly = doc["hourly"];
+    http.end();
+	if (JSON_error) 
+		{
+			Serial.printf("deserializeJson() failed: %s\n\r",JSON_error.c_str());
+			return 25;
+		}
 
-    // for(int x = 1; x < 24; x++)
-        // {
-            // JsonObject hourly_0 = hourly[x-1];
-            // history[x].dayTime = hourly_0["dt"]; // 1607212800
+	history[0].h12_cloudCover  = daytotal["cloud_cover"]["afternoon"];
+	history[0].h12_humidity    = daytotal["humidity"]["afternoon"];
+	history[0].day_rainVolume  = daytotal["precipitation"]["total"];
+	history[0].h12_pressure    = daytotal["pressure"]["afternoon"];
 
-            // if(hourly_0["dt"])
-                // {
-                    // long tempTime = hourly_0["dt"];
-                    // tempTime += location.timezoneOffset;
-                    // dateTimeConversion(tempTime,history[x].readableDateTime,USER_PARAM.OPEN_WEATHER_DATEFORMAT);
-                // }
+	JsonObject histemp = daytotal["temperature"];
+	history[0].min_temperature = histemp["min"];
+	history[0].max_temperature = histemp["max"];
+	history[0].h00_temperature = histemp["night"];
+	history[0].h06_temperature = histemp["morning"];
+	history[0].h12_temperature = histemp["afternoon"];
+	history[0].h18_temperature = histemp["evening"];
+	
+	JsonObject wind = daytotal["wind"]["max"];
+	history[0].max_windSpeed   = wind["speed"];
+	history[0].max_windBearing = wind["direction"];
 
-            // history[x].sunrise = current["sunrise"] | 1607256309; // 1607256309
-
-            // if(current["sunrise"])
-                // {
-                    // long tempTime = current["sunrise"];
-                    // tempTime += location.timezoneOffset;
-                    // dateTimeConversion(tempTime,history[x].readableSunrise,USER_PARAM.OPEN_WEATHER_DATEFORMAT+4);
-                // }
-
-            // history[x].sunset = current["sunset"] | 1607290280; // 1607290280
-
-            // if(current["sunset"])
-                // {
-                    // long tempTime = current["sunset"];
-                    // tempTime += location.timezoneOffset;
-                    // dateTimeConversion(tempTime,history[x].readableSunset,USER_PARAM.OPEN_WEATHER_DATEFORMAT+4);
-                // }
-
-            // history[x].temperature = hourly_0["temp"]; // 40.21
-            // history[x].apparentTemperature = hourly_0["feels_like"]; // 29.39
-            // history[x].pressure = hourly_0["pressure"]; // 1007
-            // history[x].humidity = hourly_0["humidity"]; // 56
-            // history[x].dewPoint = hourly_0["dew_point"]; // 26.51
-            // history[x].cloudCover = hourly_0["clouds"]; // 1
-            // history[x].visibility = hourly_0["visibility"]; // 16093
-            // history[x].windSpeed = hourly_0["wind_speed"]; // 11.41
-            // history[x].windBearing = hourly_0["wind_deg"]; // 290
-
-            // // New rain and snow =======================
-            // if(hourly_0["rain"]["1h"])
-                // {
-                    // history[x].rainVolume = hourly_0["rain"]["1h"]; // Checked needs 1h
-					// if(USER_PARAM.OPEN_WEATHER_UNITS == 2)
-                        // {
-                            // history[x].rainVolume /= 25.4; // mm to inch
-                        // }
-                // }else history[x].rainVolume = 0;
-
-
-            // if(hourly_0["snow"])
-                // {
-                    // history[x].snowVolume = hourly_0["snow"]["1h"]; // 95
-					// if(USER_PARAM.OPEN_WEATHER_UNITS == 2)
-                        // {
-                            // history[x].snowVolume /= 25.4; // 95
-                        // }
-                // }else history[x].snowVolume = 0;
-
-            // JsonObject hourly_0_weather_0 = hourly_0["weather"][0];
-            // history[x].id = hourly_0_weather_0["id"]; // 800
-
-            // history[x].main = (char *)realloc(history[x].main,sizeof(char) * strlen(hourly_0_weather_0["main"])+1);
-            // if(history[x].main == NULL) return 23;
-            // strncpy(history[x].main,hourly_0_weather_0["main"],strlen(hourly_0_weather_0["main"])+1);
-
-            // history[x].summary = (char *)realloc(history[x].summary,sizeof(char) * strlen(hourly_0_weather_0["description"])+1);
-            // if(history[x].summary == NULL) return 23;
-            // strncpy(history[x].summary,hourly_0_weather_0["description"],strlen(hourly_0_weather_0["description"])+1);
-
-            // strncpy(history[x].icon,hourly_0_weather_0["icon"],strlen(hourly_0_weather_0["icon"])+1);
-
-            // dateTimeConversion(history[0].dayTime,history[x].weekDayName,9);
-        // }
     return 0;
 }
 
@@ -794,7 +772,7 @@ int OpenWeatherOneCall::createCurrent()
             if(currently["snow"]["1h"])
                 {
                     current->snowVolume = currently["snow"]["1h"]; // 95
-					if(USER_PARAM.OPEN_WEATHER_UNITS == 2)
+					if(USER_PARAM.OPEN_WEATHER_UNITS == IMPERIAL)
                         {
                             current->snowVolume /= 25.4; // 95
                         }
@@ -803,7 +781,7 @@ int OpenWeatherOneCall::createCurrent()
             if(currently["rain"]["1h"])
                 {
                     current->rainVolume = currently["rain"]["1h"]; // checked needs 1h
-					if(USER_PARAM.OPEN_WEATHER_UNITS == 2)
+					if(USER_PARAM.OPEN_WEATHER_UNITS == IMPERIAL)
                         {
                             current->rainVolume /= 25.4; // mm to inch
                         } 
@@ -921,7 +899,7 @@ int OpenWeatherOneCall::createCurrent()
                     if(daily[x]["rain"])
                         {
                             forecast[x].rainVolume = daily[x]["rain"]; // checked here no 1h
-							if(USER_PARAM.OPEN_WEATHER_UNITS == 2)
+							if(USER_PARAM.OPEN_WEATHER_UNITS == IMPERIAL)
                                 {
                                     forecast[x].rainVolume /= 25.4; // Inch
                                 }
@@ -930,7 +908,7 @@ int OpenWeatherOneCall::createCurrent()
                     if(daily[x]["snow"])
                         {
                             forecast[x].snowVolume = daily[x]["snow"]; // 95
-							if(USER_PARAM.OPEN_WEATHER_UNITS == 2)
+							if(USER_PARAM.OPEN_WEATHER_UNITS == IMPERIAL)
                                 {
                                     forecast[x].snowVolume /= 25.4; // 95
                                 }
@@ -1024,7 +1002,7 @@ int OpenWeatherOneCall::createCurrent()
                             if(hourly_0["snow"]["1h"])
                                 {
                                     hour[h].snowVolume = hourly_0["snow"]["1h"]; // 95
-									if(USER_PARAM.OPEN_WEATHER_UNITS == 2)
+									if(USER_PARAM.OPEN_WEATHER_UNITS == IMPERIAL)
                                         {
                                             hour[h].snowVolume /= 25.4; // to inch
                                         } 
@@ -1034,7 +1012,7 @@ int OpenWeatherOneCall::createCurrent()
                             if(hourly_0["rain"]["1h"]) 
                                 {
                                     hour[h].rainVolume = hourly_0["rain"]["1h"]; // checked need 1h
-									if(USER_PARAM.OPEN_WEATHER_UNITS == 2)
+									if(USER_PARAM.OPEN_WEATHER_UNITS == IMPERIAL)
                                         {
                                             hour[h].rainVolume /= 25.4; // inch
                                         }
@@ -1115,7 +1093,7 @@ int OpenWeatherOneCall::setExcl(int _EXCL)
 
 int OpenWeatherOneCall::setUnits(int _UNIT)
 {
-    if(_UNIT > 4)
+    if((_UNIT > KELVIN) or (_UNIT < 0))
         {
             return 15;
         }
@@ -1123,17 +1101,17 @@ int OpenWeatherOneCall::setUnits(int _UNIT)
 
     switch(_UNIT)
         {
-        case 3:
-            strcpy(units,"STANDARD");
+        case KELVIN:
+            strcpy(units,"standard");
             break;
-        case 2:
-            strcpy(units,"IMPERIAL");
+        case IMPERIAL:
+            strcpy(units,"imperial");
             break;
-        case 1:
-            strcpy(units,"METRIC");
+        case METRIC:
+            strcpy(units,"metric");
             break;
         default :
-            strcpy(units,"IMPERIAL");
+            strcpy(units,"imperial");
         }
 
     return 0;
@@ -1189,11 +1167,8 @@ void OpenWeatherOneCall::freeHistoryMem(void)
 {
     if(history)
         {
-            for( int x = 25; x > 0; x--)
-                {
-                    if (history[x-1].summary) free(history[x-1].summary);
-                    if (history[x-1].main);   free(history[x-1].main);
-                }
+			if (history[0].summary) free(history[0].summary);
+			if (history[0].main);   free(history[0].main);
             free(history);
             history = NULL;
         }

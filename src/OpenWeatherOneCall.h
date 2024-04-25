@@ -244,8 +244,19 @@ public:
         char* main; // "Clouds"
         char* summary; // "overcast clouds"
         char icon[4]; // "04d"
-
-    } *history = NULL; //[25]
+        float h12_cloudCover; // 90
+        float h12_humidity; // 76
+        float day_rainVolume;
+        float h12_pressure; // 1016
+        float min_temperature; // 285.9
+        float max_temperature; // 285.9
+        float h00_temperature; // 285.9
+        float h06_temperature; // 285.9
+        float h12_temperature; // 285.9
+        float h18_temperature; // 285.9
+        float max_windSpeed; // 3.1
+        float max_windBearing; // 160
+		} *history = NULL; //[25]
 
     const char* short_names[7] = {"SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"};
     char buffer[40];
