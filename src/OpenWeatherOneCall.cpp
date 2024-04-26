@@ -11,7 +11,7 @@
    See User Manual
 */
 
-#define DEBUG_TO_SERIAL // If defined HTTP output send to serial monitor.
+// #define DEBUG_TO_SERIAL // If defined HTTP output send to serial monitor.
 #ifdef DEBUG_TO_SERIAL
 	#include <StreamUtils.h>  // Install: https://github.com/bblanchon/ArduinoStreamUtils
 #endif
@@ -180,6 +180,7 @@ int OpenWeatherOneCall::parseCityCoordinates(char* CTY_URL)
 	// Send copy of http data to serial port
 	ReadLoggingStream loggingStream(http.getStream(), Serial);
 	DeserializationError JSON_error = deserializeJson(doc, loggingStream);
+	Serial.println("");
 #else
 	DeserializationError JSON_error = deserializeJson(doc, http.getStream()); // Increased stability
 #endif
@@ -258,6 +259,7 @@ int OpenWeatherOneCall::getIPAPILocation(char* URL)
 	// Send copy of http data to serial port
 	ReadLoggingStream loggingStream(http.getStream(), Serial);
 	DeserializationError JSON_error = deserializeJson(doc, loggingStream);
+	Serial.println("");
 #else
 	DeserializationError JSON_error = deserializeJson(doc, http.getStream()); // Increased stability
 #endif
@@ -304,7 +306,7 @@ static bool bDone = false ;
 
     sprintf(locationURL,"https://api.bigdatacloud.net/data/reverse-geocode-client/?latitude=%f&longitude=%f\0",USER_PARAM.OPEN_WEATHER_LATITUDE,USER_PARAM.OPEN_WEATHER_LONGITUDE);
 #ifdef DEBUG_TO_SERIAL
-	Serial.printf("\n\r%s\n\r",locationURL);
+	Serial.printf("%s\n\r",locationURL);
 #endif
     HTTPClient http;
     http.useHTTP10(true); // To enable http.getStream()
@@ -324,6 +326,7 @@ static bool bDone = false ;
 	// Send copy of http data to serial port
 	ReadLoggingStream loggingStream(http.getStream(), Serial);
 	DeserializationError JSON_error = deserializeJson(doc, loggingStream);
+	Serial.println("");
 #else
 	DeserializationError JSON_error = deserializeJson(doc, http.getStream()); // Increased stability
 #endif
@@ -387,7 +390,7 @@ int OpenWeatherOneCall::createHistory()
             //Gets Timestamp for EPOCH calculation below
             sprintf(getURL,"https://api.openweathermap.org/data/3.0/onecall?lat=%.6f&lon=%.6f&exclude=minutely,hourly,daily,alerts&units=IMPERIAL&appid=%s",USER_PARAM.OPEN_WEATHER_LATITUDE,USER_PARAM.OPEN_WEATHER_LONGITUDE,USER_PARAM.OPEN_WEATHER_DKEY);
 #ifdef DEBUG_TO_SERIAL
-			Serial.printf("\n\r%s\n\r",getURL);
+			Serial.printf("%s\n\r",getURL);
 #endif
 
             http.useHTTP10(true); // To enable http.getStream()
@@ -407,6 +410,7 @@ int OpenWeatherOneCall::createHistory()
 			// Send copy of http data to serial port
 			ReadLoggingStream loggingStream(http.getStream(), Serial);
 			DeserializationError JSON_error = deserializeJson(toc, loggingStream);
+			Serial.println("");
 #else
 			DeserializationError JSON_error = deserializeJson(toc, http.getStream()); // Increased stability
 #endif
@@ -428,7 +432,7 @@ int OpenWeatherOneCall::createHistory()
     //Timemachine request to OWM
     sprintf(getURL,"%s?lat=%.6f&lon=%.6f%s%ld&units=%s%s%s",TS_URL1,USER_PARAM.OPEN_WEATHER_LATITUDE,USER_PARAM.OPEN_WEATHER_LONGITUDE,TS_URL2,tempEPOCH,units,DS_URL3,USER_PARAM.OPEN_WEATHER_DKEY);
 #ifdef DEBUG_TO_SERIAL
-	Serial.printf("\n\r%s\n\r",getURL);
+	Serial.printf("%s\n\r",getURL);
 #endif
     
     http.useHTTP10(true); // To enable http.getStream()
@@ -448,6 +452,7 @@ int OpenWeatherOneCall::createHistory()
 	// Send copy of http data to serial port
 	ReadLoggingStream loggingStream(http.getStream(), Serial);
 	DeserializationError JSON_error = deserializeJson(doc, loggingStream);
+	Serial.println("");
 #else
 	DeserializationError JSON_error = deserializeJson(doc, http.getStream()); // Increased stability
 #endif
@@ -471,7 +476,6 @@ int OpenWeatherOneCall::createHistory()
     //Current in historical is the time of the request on that day
     JsonObject current = doc["data"][0];
     history[0].dayTime = current["dt"]; // 1607292481
-
     if(current["dt"])
         {
             long tempTime = current["dt"];
@@ -480,7 +484,6 @@ int OpenWeatherOneCall::createHistory()
         }
 
     history[0].sunrise = current["sunrise"]; // 1607256309
-
     if(current["sunrise"])
         {
             long tempTime = current["sunrise"];
@@ -489,7 +492,6 @@ int OpenWeatherOneCall::createHistory()
         }
 
     history[0].sunset = current["sunset"]; // 1607290280
-
     if(current["sunset"])
         {
             long tempTime = current["sunset"];
@@ -529,29 +531,24 @@ int OpenWeatherOneCall::createHistory()
         } else history[0].snowVolume = 0;
 
     JsonObject cur_weather = current["weather"][0];
-	if (cur_weather) 
-	{
-		Serial.printf("\n\r***** Weather\n\r");
-	
-		history[0].id = cur_weather["id"]; // 800
-		history[0].main = (char *)realloc(history[0].main,sizeof(char) * strlen(cur_weather["main"])+1);
-		if(history[0].main == NULL) return 23;
-		strncpy(history[0].main,cur_weather["main"],strlen(cur_weather["main"])+1);
+	history[0].id = cur_weather["id"]; // 800
+	history[0].main = (char *)realloc(history[0].main,sizeof(char) * strlen(cur_weather["main"])+1);
+	if(history[0].main == NULL) return 23;
+	strncpy(history[0].main,cur_weather["main"],strlen(cur_weather["main"])+1);
 
-		history[0].summary = (char *)realloc(history[0].summary,sizeof(char) * strlen(cur_weather["description"])+1);
-		if(history[0].summary == NULL) return 23;
-		strncpy(history[0].summary,cur_weather["description"],strlen(cur_weather["description"])+1);
+	history[0].summary = (char *)realloc(history[0].summary,sizeof(char) * strlen(cur_weather["description"])+1);
+	if(history[0].summary == NULL) return 23;
+	strncpy(history[0].summary,cur_weather["description"],strlen(cur_weather["description"])+1);
 
-		strncpy(history[0].icon,cur_weather["icon"],strlen(cur_weather["icon"])+1);
-		dateTimeConversion(history[0].dayTime,history[0].weekDayName,9);
-	}
+	strncpy(history[0].icon,cur_weather["icon"],strlen(cur_weather["icon"])+1);
+	dateTimeConversion(history[0].dayTime,history[0].weekDayName,9);
 
     //Daily Aggregation request to OWM
     char HS_Date[12];
 	dateTimeConversion(tempEPOCH, HS_Date, 10);
     sprintf(getURL,"%s?lat=%.6f&lon=%.6f%s%s&units=%s%s%s",DA_URL1,USER_PARAM.OPEN_WEATHER_LATITUDE,USER_PARAM.OPEN_WEATHER_LONGITUDE,DA_URL2,HS_Date,units,DS_URL3,USER_PARAM.OPEN_WEATHER_DKEY);
 #ifdef DEBUG_TO_SERIAL
-	Serial.printf("\n\r%s\n\r",getURL);
+	Serial.printf("%s\n\r",getURL);
 #endif
     
     http.useHTTP10(true); // To enable http.getStream()
@@ -571,6 +568,7 @@ int OpenWeatherOneCall::createHistory()
 	// Send copy of http data to serial port
 	ReadLoggingStream loggingStream2(http.getStream(), Serial);
 	JSON_error = deserializeJson(daytotal, loggingStream2);
+	Serial.println("");
 #else
 	JSON_error = deserializeJson(daytotal, http.getStream()); // Increased stability
 #endif
@@ -608,7 +606,7 @@ int OpenWeatherOneCall::createAQ()
 
     sprintf(getURL,"%s%.6f%s%.6f%s%s",AQ_URL1,USER_PARAM.OPEN_WEATHER_LATITUDE,AQ_URL2,USER_PARAM.OPEN_WEATHER_LONGITUDE,AQ_URL3,USER_PARAM.OPEN_WEATHER_DKEY);
 #ifdef DEBUG_TO_SERIAL
-	Serial.printf("\n\r%s\n\r",getURL);
+	Serial.printf("%s\n\r",getURL);
 #endif
 
     HTTPClient http;
@@ -629,6 +627,7 @@ int OpenWeatherOneCall::createAQ()
 	// Send copy of http data to serial port
 	ReadLoggingStream loggingStream(http.getStream(), Serial);
 	DeserializationError JSON_error = deserializeJson(doc, loggingStream);
+	Serial.println("");
 #else
 	DeserializationError JSON_error = deserializeJson(doc, http.getStream()); // Increased stability
 #endif
@@ -674,7 +673,7 @@ int OpenWeatherOneCall::createCurrent()
     char getURL[200];
     sprintf(getURL,"%s?lat=%.6f&lon=%.6f&lang=%s%s&units=%s%s%s",DS_URL1,USER_PARAM.OPEN_WEATHER_LATITUDE,USER_PARAM.OPEN_WEATHER_LONGITUDE,USER_PARAM.OPEN_WEATHER_LANGUAGE,DS_URL2,units,DS_URL3,USER_PARAM.OPEN_WEATHER_DKEY);
 #ifdef DEBUG_TO_SERIAL
-	Serial.printf("\n\r%s\n\r",getURL);
+	Serial.printf("%s\n\r",getURL);
 #endif
 
     HTTPClient http;
@@ -696,6 +695,7 @@ int OpenWeatherOneCall::createCurrent()
 	// Send copy of http data to serial port
 	ReadLoggingStream loggingStream(http.getStream(), Serial);
 	DeserializationError JSON_error = deserializeJson(doc, loggingStream);
+	Serial.println("");
 #else
 	DeserializationError JSON_error = deserializeJson(doc, http.getStream()); // Increased stability
 #endif
