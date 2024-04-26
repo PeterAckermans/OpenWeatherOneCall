@@ -11,7 +11,7 @@
    See User Manual
 */
 
-#define DEBUG_TO_SERIAL // If defined HTTP output send to serial monitor.
+// #define DEBUG_TO_SERIAL // If defined HTTP output send to serial monitor.
 #ifdef DEBUG_TO_SERIAL
 	#include <StreamUtils.h>  // Install: https://github.com/bblanchon/ArduinoStreamUtils
 #endif
