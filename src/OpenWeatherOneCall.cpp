@@ -11,7 +11,7 @@
    See User Manual
 */
 
-// #define DEBUG_TO_SERIAL // If defined HTTP output send to serial monitor.
+#define DEBUG_TO_SERIAL // If defined HTTP output send to serial monitor.
 #ifdef DEBUG_TO_SERIAL
 	#include <StreamUtils.h>  // Install: https://github.com/bblanchon/ArduinoStreamUtils
 #endif
@@ -24,15 +24,16 @@ OpenWeatherOneCall::OpenWeatherOneCall()
 
 }
 
+// For setting API KEY *************
+#define API_URL "&appid="
+
 // For Normal Weather calls *************
 #define DS_URL1 "https://api.openweathermap.org/data/3.0/onecall"
-char DS_URL2[100];
-#define DS_URL3 "&appid="
 
-// For Air Quality calls current *************
+// For Air Quality calls current April 2024 not on 3.0 *************
 #define AQ_URL1 "https://api.openweathermap.org/data/2.5/air_pollution?lat="
 #define AQ_URL2 "&lon="
-#define AQ_URL3 "&appid="
+
 
 // For Historical Weather Calls time details **********
 #define TS_URL1 "https://api.openweathermap.org/data/3.0/onecall/timemachine"
@@ -43,8 +44,7 @@ char DS_URL2[100];
 #define DA_URL2 "&date="
 
 // For CITY Id calls
-#define CI_URL1 "api.openweathermap.org/data/2.5/weather?id="
-#define CI_URL2 "&appid="
+#define CI_URL1 "http://api.openweathermap.org/data/3.0/weather?id="
 
 #define SIZEOF(a) sizeof(a)/sizeof(*a)
 
@@ -142,10 +142,8 @@ int OpenWeatherOneCall::setLatLon(float _LAT, float _LON)
 int OpenWeatherOneCall::setLatLon(int _CITY_ID)
 {
     char cityURL[110];
-    char* URL1 = (char *)"http://api.openweathermap.org/data/2.5/weather?id=";
-    char* URL2 = (char *)"&appid=";
 
-    sprintf(cityURL,"%s%d%s%s",URL1,_CITY_ID,URL2,USER_PARAM.OPEN_WEATHER_DKEY);
+    sprintf(cityURL,"%s%d%s%s",CI_URL1,_CITY_ID,API_URL,USER_PARAM.OPEN_WEATHER_DKEY);
     return OpenWeatherOneCall::parseCityCoordinates(cityURL);
 }
 
@@ -376,10 +374,10 @@ int OpenWeatherOneCall::createHistory()
     long tempEPOCH ;
     HTTPClient http;
     
-    if(USER_PARAM.OPEN_WEATHER_HISTORY > 5)
-        {
-            return 16;
-        }
+    // if(USER_PARAM.OPEN_WEATHER_HISTORY > 5)
+        // {
+            // return 16;
+        // }
 
     if(EpochTimeCallback != NULL) 
         {
@@ -430,7 +428,7 @@ int OpenWeatherOneCall::createHistory()
     tempEPOCH = tempEPOCH - (86400 * USER_PARAM.OPEN_WEATHER_HISTORY);
 
     //Timemachine request to OWM
-    sprintf(getURL,"%s?lat=%.6f&lon=%.6f%s%ld&units=%s%s%s",TS_URL1,USER_PARAM.OPEN_WEATHER_LATITUDE,USER_PARAM.OPEN_WEATHER_LONGITUDE,TS_URL2,tempEPOCH,units,DS_URL3,USER_PARAM.OPEN_WEATHER_DKEY);
+    sprintf(getURL,"%s?lat=%.6f&lon=%.6f%s%ld&units=%s%s%s",TS_URL1,USER_PARAM.OPEN_WEATHER_LATITUDE,USER_PARAM.OPEN_WEATHER_LONGITUDE,TS_URL2,tempEPOCH,units,API_URL,USER_PARAM.OPEN_WEATHER_DKEY);
 #ifdef DEBUG_TO_SERIAL
 	Serial.printf("%s\n\r",getURL);
 #endif
@@ -546,7 +544,7 @@ int OpenWeatherOneCall::createHistory()
     //Daily Aggregation request to OWM
     char HS_Date[12];
 	dateTimeConversion(tempEPOCH, HS_Date, 10);
-    sprintf(getURL,"%s?lat=%.6f&lon=%.6f%s%s&units=%s%s%s",DA_URL1,USER_PARAM.OPEN_WEATHER_LATITUDE,USER_PARAM.OPEN_WEATHER_LONGITUDE,DA_URL2,HS_Date,units,DS_URL3,USER_PARAM.OPEN_WEATHER_DKEY);
+    sprintf(getURL,"%s?lat=%.6f&lon=%.6f%s%s&units=%s%s%s",DA_URL1,USER_PARAM.OPEN_WEATHER_LATITUDE,USER_PARAM.OPEN_WEATHER_LONGITUDE,DA_URL2,HS_Date,units,API_URL,USER_PARAM.OPEN_WEATHER_DKEY);
 #ifdef DEBUG_TO_SERIAL
 	Serial.printf("%s\n\r",getURL);
 #endif
@@ -604,7 +602,7 @@ int OpenWeatherOneCall::createAQ()
 {
     char getURL[200];
 
-    sprintf(getURL,"%s%.6f%s%.6f%s%s",AQ_URL1,USER_PARAM.OPEN_WEATHER_LATITUDE,AQ_URL2,USER_PARAM.OPEN_WEATHER_LONGITUDE,AQ_URL3,USER_PARAM.OPEN_WEATHER_DKEY);
+    sprintf(getURL,"%s%.6f%s%.6f%s%s",AQ_URL1,USER_PARAM.OPEN_WEATHER_LATITUDE,AQ_URL2,USER_PARAM.OPEN_WEATHER_LONGITUDE,API_URL,USER_PARAM.OPEN_WEATHER_DKEY);
 #ifdef DEBUG_TO_SERIAL
 	Serial.printf("%s\n\r",getURL);
 #endif
@@ -671,7 +669,7 @@ int OpenWeatherOneCall::createAQ()
 int OpenWeatherOneCall::createCurrent()
 {
     char getURL[200];
-    sprintf(getURL,"%s?lat=%.6f&lon=%.6f&lang=%s%s&units=%s%s%s",DS_URL1,USER_PARAM.OPEN_WEATHER_LATITUDE,USER_PARAM.OPEN_WEATHER_LONGITUDE,USER_PARAM.OPEN_WEATHER_LANGUAGE,DS_URL2,units,DS_URL3,USER_PARAM.OPEN_WEATHER_DKEY);
+    sprintf(getURL,"%s?lat=%.6f&lon=%.6f&lang=%s&units=%s%s%s",DS_URL1,USER_PARAM.OPEN_WEATHER_LATITUDE,USER_PARAM.OPEN_WEATHER_LONGITUDE,USER_PARAM.OPEN_WEATHER_LANGUAGE,units,API_URL,USER_PARAM.OPEN_WEATHER_DKEY);
 #ifdef DEBUG_TO_SERIAL
 	Serial.printf("%s\n\r",getURL);
 #endif
@@ -1008,7 +1006,6 @@ int OpenWeatherOneCall::createCurrent()
                                         } 
                                 } else hour[h].snowVolume = 0;
 
-
                             if(hourly_0["rain"]["1h"]) 
                                 {
                                     hour[h].rainVolume = hourly_0["rain"]["1h"]; // checked need 1h
@@ -1056,7 +1053,6 @@ int OpenWeatherOneCall::createCurrent()
                             minute = (struct MINUTELY *)calloc(61, sizeof(struct MINUTELY));
                             if(minute == NULL) return 23;
                         }
-
 
                     JsonArray minutely = doc["minutely"];
 
@@ -1119,7 +1115,7 @@ int OpenWeatherOneCall::setUnits(int _UNIT)
 
 int OpenWeatherOneCall::setHistory(int _HIS)
 {
-    if(_HIS > 5)
+    if(_HIS > 7)
         {
             return 16;
         }
