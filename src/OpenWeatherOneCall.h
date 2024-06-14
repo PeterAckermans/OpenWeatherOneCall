@@ -20,6 +20,7 @@
 #include <Arduino.h>
 #include <string.h>
 #include "errMsgs.h"
+#include <WiFi.h>
 
 // Excludes
 #define EXCL_C 1  //Exclude Current
